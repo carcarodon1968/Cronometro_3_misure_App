@@ -6,7 +6,7 @@ import {
   formatTimeParts,
   parseContainerAmount,
 } from '../types/measurement';
-import { exportSessionsToCSV } from '../db/localDatabase';
+import { exportSessionsToCSV, exportSessionsToExcelXLSX } from '../db/localDatabase';
 import {
   Download,
   FileSpreadsheet,
@@ -92,6 +92,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     const a = document.createElement('a');
     a.href = url;
     a.download = `cronotri_storico_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadExcel = () => {
+    const blob = exportSessionsToExcelXLSX(filteredAndSorted);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cronotri_storico_${new Date().toISOString().slice(0, 10)}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -204,6 +214,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Esporta CSV</span>
+            </button>
+
+            <button
+              onClick={handleDownloadExcel}
+              disabled={sessions.length === 0}
+              className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold disabled:opacity-40 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Esporta Excel</span>
             </button>
           </div>
         </div>
