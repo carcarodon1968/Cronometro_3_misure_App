@@ -35,7 +35,7 @@ import {
   importSessionsToDB,
   saveSessionToDB,
 } from './db/localDatabase';
-import { PWAInstallButton, OfflineIndicator } from './components/PWAInstallButton';
+import { PWAInstallButton, OfflineIndicator, AppUpdateBanner } from './components/PWAInstallButton';
 import { HistoryView } from './components/HistoryView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { AndroidCodeView } from './components/AndroidCodeView';
@@ -592,6 +592,8 @@ export default function App() {
             v.1.0.2
           </span>
         </a>
+
+        <AppUpdateBanner />
 
         {/* Clean text navigation links on desktop */}
         <nav className="hidden md:flex items-center justify-center gap-7 text-sm font-medium text-slate-300">

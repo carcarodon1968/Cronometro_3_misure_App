@@ -35,11 +35,20 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Fix package.json versions & Build Web App
+      - name: Read App Version from package.json
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version || '1.0.2'")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Fix package.json versions, Write version.json & Build Web App
         run: |
           node -e '
             const fs = require("fs");
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const version = pkg.version || "1.0.2";
+            const runNumber = Number("${{ github.run_number }}") || 1;
+            const repo = "${{ github.repository }}" || "carcarodon1968/Cronometro_3_misure_App";
             pkg.dependencies = {
               "react": "^19.0.0",
               "react-dom": "^19.0.0",
@@ -57,27 +66,32 @@ jobs:
               "vite-plugin-pwa": "^0.21.0"
             };
             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+            const manifest = {
+              version,
+              buildNumber: runNumber,
+              commit: "${{ github.sha }}".slice(0, 7),
+              builtAt: new Date().toISOString(),
+              apkUrl: `https://github.com/${repo}/releases/download/v.${version}/Cronometro_3_misure_v.${version}.apk`,
+              releasesPageUrl: `https://github.com/${repo}/releases/tag/v.${version}`
+            };
+            fs.writeFileSync("public/version.json", JSON.stringify(manifest, null, 2));
           '
           npm install --legacy-peer-deps
           npm run build
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Web App to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: "./dist"
-
-      - name: Publish Web App Link on GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Read App Version from package.json
-        id: pkg
+      - name: Setup Fixed Android Signing Keystore (for seamless APK updates without uninstalling)
         run: |
-          VERSION=$(node -p "require('./package.json').version || '1.0.2'")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          mkdir -p ~/.android
+          rm -f ~/.android/debug.keystore /tmp/fixed_debug.p12
+          echo "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" | base64 -d > /tmp/fixed_debug.p12
+          keytool -importkeystore \
+            -srckeystore /tmp/fixed_debug.p12 \
+            -srcstoretype PKCS12 \
+            -srcstorepass android \
+            -destkeystore ~/.android/debug.keystore \
+            -deststorepass android \
+            -destkeypass android \
+            -noprompt
 
       - name: Build Installable Android APK (Cronometro 3 misure)
         run: |
@@ -85,6 +99,9 @@ jobs:
           rm -rf capacitor.config.* android
           npx cap init "Cronometro 3 misure" "com.cronometro3misure.app" --web-dir dist
           npx cap add android
+          VER_CODE=$((100 + ${{ github.run_number }}))
+          sed -i "s/versionCode 1/versionCode ${VER_CODE}/g" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"${{ steps.pkg.outputs.version }}\"/g" android/app/build.gradle
           npx cap copy android
           for dir in android/app/src/main/res/mipmap-*dpi; do
             if [ -d "$dir" ]; then
@@ -110,9 +127,22 @@ jobs:
         with:
           tag_name: v.${{ steps.pkg.outputs.version }}
           name: Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}
-          body: "Release automatica Cronometro_3_misure_v.${{ steps.pkg.outputs.version }} (APK Android installabile + Web App)"
+          body: "Release automatica Cronometro_3_misure_v.${{ steps.pkg.outputs.version }} (Build #${{ github.run_number }} - APK Android installabile con Firma Fissa + Web App)"
           draft: false
           prerelease: false
+          make_latest: "true"
           files: |
             Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}.apk
             Cronometro_3_misure_WebApp_v.${{ steps.pkg.outputs.version }}.zip
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Web App to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./dist"
+
+      - name: Publish Web App Link on GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
