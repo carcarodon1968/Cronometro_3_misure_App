@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- White Background -->
+  <rect width="512" height="512" rx="96" fill="#FFFFFF"/>
+
+  <!-- Top Center Crown -->
+  <rect x="239" y="76" width="34" height="38" fill="#273235"/>
+  <rect x="216" y="50" width="80" height="32" rx="16" fill="#3D4E50"/>
+
+  <!-- Left Angled Pusher (-34 deg around 256, 284) -->
+  <g transform="rotate(-34 256 284)">
+    <rect x="245" y="82" width="22" height="32" fill="#273235"/>
+    <rect x="232" y="64" width="48" height="26" rx="8" fill="#3D4E50"/>
+  </g>
+
+  <!-- Right Angled Pusher (+34 deg around 256, 284) -->
+  <g transform="rotate(34 256 284)">
+    <rect x="245" y="82" width="22" height="32" fill="#273235"/>
+    <rect x="232" y="64" width="48" height="26" rx="8" fill="#3D4E50"/>
+  </g>
+
+  <!-- Main Stopwatch Red Bezel & Inner Shadow Ring -->
+  <circle cx="256" cy="284" r="178" fill="#EF4B4C"/>
+  <circle cx="256" cy="284" r="148" fill="#C83E3B"/>
+  <circle cx="256" cy="284" r="136" fill="#FFFFFF"/>
+
+  <!-- 8 Dial Tick Marks -->
+  <g fill="#3D4E50">
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(0 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(45 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(90 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(135 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(180 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(225 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(270 256 284)"/>
+    <rect x="250.5" y="159" width="11" height="22" rx="5.5" transform="rotate(315 256 284)"/>
+  </g>
+
+  <!-- Red Stopwatch Pointer Hand (+28 deg around 256, 284) -->
+  <g transform="rotate(28 256 284)">
+    <path d="M238 284 L252.5 186 A3.5 3.5 0 0 1 259.5 186 L274 284 Z" fill="#EF4B4C"/>
+    <circle cx="256" cy="284" r="26" fill="#EF4B4C"/>
+    <circle cx="256" cy="284" r="13" fill="#FFFFFF"/>
+  </g>
+</svg>

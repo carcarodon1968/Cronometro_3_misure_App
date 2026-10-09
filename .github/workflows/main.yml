@@ -1,0 +1,118 @@
+name: Build APK & Deploy Web App Link
+
+on:
+  push:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build_and_deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Java JDK 17 for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Fix package.json versions & Build Web App
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            pkg.dependencies = {
+              "react": "^19.0.0",
+              "react-dom": "^19.0.0",
+              "lucide-react": "latest"
+            };
+            pkg.devDependencies = {
+              "@tailwindcss/vite": "^4.0.0",
+              "@types/node": "^22.0.0",
+              "@types/react": "^19.0.0",
+              "@types/react-dom": "^19.0.0",
+              "@vitejs/plugin-react": "^4.3.0",
+              "tailwindcss": "^4.0.0",
+              "typescript": "^5.7.0",
+              "vite": "^6.0.0",
+              "vite-plugin-pwa": "^0.21.0"
+            };
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+          '
+          npm install --legacy-peer-deps
+          npm run build
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Web App to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./dist"
+
+      - name: Publish Web App Link on GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Read App Version from package.json
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version || '1.0.2'")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Installable Android APK (Cronometro 3 misure)
+        run: |
+          npm install --no-save --legacy-peer-deps @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          rm -rf capacitor.config.* android
+          npx cap init "Cronometro 3 misure" "com.cronometro3misure.app" --web-dir dist
+          npx cap add android
+          npx cap copy android
+          for dir in android/app/src/main/res/mipmap-*dpi; do
+            if [ -d "$dir" ]; then
+              cp public/pwa-512x512.png "$dir/ic_launcher.png"
+              cp public/pwa-512x512.png "$dir/ic_launcher_round.png"
+              cp public/pwa-maskable-512x512.png "$dir/ic_launcher_foreground.png"
+            fi
+          done
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}.apk
+          cd ../dist && zip -r ../Cronometro_3_misure_WebApp_v.${{ steps.pkg.outputs.version }}.zip .
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}
+          path: Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}.apk
+
+      - name: Publish Release in GitHub Releases Archive
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: v.${{ steps.pkg.outputs.version }}
+          name: Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}
+          body: "Release automatica Cronometro_3_misure_v.${{ steps.pkg.outputs.version }} (APK Android installabile + Web App)"
+          draft: false
+          prerelease: false
+          files: |
+            Cronometro_3_misure_v.${{ steps.pkg.outputs.version }}.apk
+            Cronometro_3_misure_WebApp_v.${{ steps.pkg.outputs.version }}.zip

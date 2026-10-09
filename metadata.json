@@ -1,0 +1,6 @@
+{
+  "name": "Cronometro 3 misure",
+  "description": "Cronometro di precisione per Android con acquisizione automatica su 3 campi di misura, calcolo immediato della media a ogni stop e archivio storico su database locale.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
