@@ -5,6 +5,41 @@ const DB_VERSION = 1;
 const STORE_NAME = 'measurement_sessions';
 const STORAGE_BACKUP_KEY = 'cronotri_sessions_backup_v1';
 
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.storage &&
+      typeof navigator.storage.persist === 'function'
+    ) {
+      const alreadyPersisted =
+        typeof navigator.storage.persisted === 'function'
+          ? await navigator.storage.persisted()
+          : false;
+      if (alreadyPersisted) return true;
+      return await navigator.storage.persist();
+    }
+  } catch {
+    // Ignore errors in restricted contexts
+  }
+  return false;
+}
+
+export async function checkPersistentStorageStatus(): Promise<boolean> {
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.storage &&
+      typeof navigator.storage.persisted === 'function'
+    ) {
+      return await navigator.storage.persisted();
+    }
+  } catch {
+    // Ignore errors
+  }
+  return false;
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !('indexedDB' in window)) {
@@ -311,7 +346,12 @@ function createZipArchive(files: Array<{ name: string; content: string }>): Blob
   eocdView.setUint32(16, offset, true); // Offset of central directory
   eocdView.setUint16(20, 0, true); // Comment length
 
-  return new Blob([...localParts, ...centralParts, eocd], {
+  const blobParts: BlobPart[] = [
+    ...localParts.map((p) => p.buffer as ArrayBuffer),
+    ...centralParts.map((p) => p.buffer as ArrayBuffer),
+    eocd.buffer as ArrayBuffer,
+  ];
+  return new Blob(blobParts, {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 }
@@ -396,9 +436,9 @@ export function exportSessionsToExcelXLSX(records: MeasurementRecord[]): Blob {
         { val: flowMin !== null ? Number(flowMin.toFixed(2)) : null, style: 3, isNum: true },
         { val: flowHour !== null ? Number(flowHour.toFixed(2)) : null, style: 3, isNum: true },
         { val: flow24h !== null ? Number(flow24h.toFixed(2)) : null, style: 3, isNum: true },
-        { val: Number((r.time1 / 1000).toFixed(3)), style: 4, isNum: true },
-        { val: Number((r.time2 / 1000).toFixed(3)), style: 4, isNum: true },
-        { val: Number((r.time3 / 1000).toFixed(3)), style: 4, isNum: true },
+        { val: r.time1 !== null ? Number((r.time1 / 1000).toFixed(3)) : null, style: 4, isNum: true },
+        { val: r.time2 !== null ? Number((r.time2 / 1000).toFixed(3)) : null, style: 4, isNum: true },
+        { val: r.time3 !== null ? Number((r.time3 / 1000).toFixed(3)) : null, style: 4, isNum: true },
         { val: Number((r.finalAverage / 1000).toFixed(3)), style: 4, isNum: true },
         { val: Number((r.minTime / 1000).toFixed(3)), style: 4, isNum: true },
         { val: Number((r.maxTime / 1000).toFixed(3)), style: 4, isNum: true },

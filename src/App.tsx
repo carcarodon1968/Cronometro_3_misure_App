@@ -33,8 +33,20 @@ import {
   deleteSessionFromDB,
   getAllSessions,
   importSessionsToDB,
+  requestPersistentStorage,
   saveSessionToDB,
 } from './db/localDatabase';
+import {
+  clearAllUserSessionsFromCloud,
+  deleteSessionFromCloud,
+  saveSessionToCloud,
+  signInWithGoogleCloud,
+  signOutFromCloud,
+  subscribeToAuthChanges,
+  subscribeToUserCloudSessions,
+  syncLocalAndCloudSessions,
+} from './db/firebaseCloud';
+import type { User } from 'firebase/auth';
 import { PWAInstallButton, OfflineIndicator, AppUpdateBanner } from './components/PWAInstallButton';
 import { HistoryView } from './components/HistoryView';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -75,6 +87,10 @@ export default function App() {
   const [sessions, setSessions] = useState<MeasurementRecord[]>([]);
   const [isLoadingDB, setIsLoadingDB] = useState<boolean>(true);
 
+  // Cloud Sync State
+  const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+
   // Refs
   const rafRef = useRef<number | null>(null);
   const startPerfRef = useRef<number>(0);
@@ -112,9 +128,13 @@ export default function App() {
     }, 3500);
   }, []);
 
-  // Load initial sessions from local IndexedDB
+  // Load initial sessions from local IndexedDB & activate Persistent Storage protection
   useEffect(() => {
     let mounted = true;
+
+    // Automatically activate Persistent Storage (Blocco Anti-Cancellazione) in the background
+    requestPersistentStorage().catch(() => {});
+
     getAllSessions()
       .then((records) => {
         if (mounted) {
@@ -129,6 +149,70 @@ export default function App() {
       mounted = false;
     };
   }, []);
+
+  // Subscribe to Firebase Auth & real-time Cloud Firestore sessions
+  useEffect(() => {
+    let unsubscribeCloudSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = subscribeToAuthChanges(async (user) => {
+      setCloudUser(user);
+
+      if (unsubscribeCloudSnapshot) {
+        unsubscribeCloudSnapshot();
+        unsubscribeCloudSnapshot = null;
+      }
+
+      if (user) {
+        setIsCloudSyncing(true);
+        try {
+          const localRecords = await getAllSessions();
+          const merged = await syncLocalAndCloudSessions(localRecords);
+          const updatedLocal = await importSessionsToDB(merged);
+          setSessions(updatedLocal);
+        } catch {
+          // Handled by firebaseCloud error handler
+        } finally {
+          setIsCloudSyncing(false);
+        }
+
+        unsubscribeCloudSnapshot = subscribeToUserCloudSessions(
+          user.uid,
+          async (cloudRecords) => {
+            const updatedLocal = await importSessionsToDB(cloudRecords);
+            setSessions(updatedLocal);
+          }
+        );
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeCloudSnapshot) {
+        unsubscribeCloudSnapshot();
+      }
+    };
+  }, []);
+
+  const handleCloudLogin = useCallback(async () => {
+    try {
+      setIsCloudSyncing(true);
+      const user = await signInWithGoogleCloud();
+      showToast(`Cloud attivo (${user.email || user.displayName || 'Account Google'})`);
+    } catch {
+      showToast('Accesso Cloud annullato o non riuscito');
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  }, [showToast]);
+
+  const handleCloudLogout = useCallback(async () => {
+    try {
+      await signOutFromCloud();
+      showToast('Disconnesso dal Cloud — i dati restano salvati nel telefono');
+    } catch {
+      showToast('Errore durante la disconnessione dal Cloud');
+    }
+  }, [showToast]);
 
   // Cleanup animation frame on unmount
   useEffect(() => {
@@ -189,6 +273,10 @@ export default function App() {
       setSessions(updatedList);
       setLastSavedId(record.id);
 
+      if (cloudUser) {
+        saveSessionToCloud(record).catch(() => {});
+      }
+
       const flowSuffix =
         stats.currentFlowPerSec !== null
           ? ` · ${formatFlowValue(stats.currentFlowPerSec)} l/s`
@@ -211,6 +299,7 @@ export default function App() {
       sessionNotes,
       sessions.length,
       showToast,
+      cloudUser,
     ]
   );
 
@@ -539,7 +628,12 @@ export default function App() {
 
     const updated = await importSessionsToDB(demoRecords);
     setSessions(updated);
-    showToast('4 sessioni di esempio caricate nel database locale');
+    if (cloudUser) {
+      for (const r of demoRecords) {
+        saveSessionToCloud(r).catch(() => {});
+      }
+    }
+    showToast('4 sessioni di esempio caricate nel database');
   };
 
   const formattedLive = formatTimeParts(elapsedMs);
@@ -589,7 +683,7 @@ export default function App() {
         >
           <span>Cronometro 3 misure</span>
           <span className="text-xs font-mono-tabular font-semibold text-orange-400/90">
-            v.1.0.2
+            v.1.0.3
           </span>
         </a>
 
@@ -1173,6 +1267,9 @@ export default function App() {
                               onClick={async () => {
                                 const updated = await deleteSessionFromDB(item.id);
                                 setSessions(updated);
+                                if (cloudUser) {
+                                  deleteSessionFromCloud(item.id).catch(() => {});
+                                }
                               }}
                               title="Elimina"
                               className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 flex items-center justify-center cursor-pointer"
@@ -1196,24 +1293,43 @@ export default function App() {
             onDeleteSession={async (id) => {
               const updated = await deleteSessionFromDB(id);
               setSessions(updated);
-              showToast('Sessione rimossa dal database locale');
+              if (cloudUser) {
+                deleteSessionFromCloud(id).catch(() => {});
+              }
+              showToast('Sessione rimossa dal database');
             }}
             onClearAll={async () => {
+              const prevSessions = [...sessions];
               const updated = await clearAllSessionsFromDB();
               setSessions(updated);
-              showToast('Database locale svuotato');
+              if (cloudUser) {
+                clearAllUserSessionsFromCloud(prevSessions).catch(() => {});
+              }
+              showToast('Database svuotato');
             }}
             onLoadSession={handleLoadSessionIntoChrono}
             onUpdateSession={async (updatedRecord) => {
               const updated = await saveSessionToDB(updatedRecord);
               setSessions(updated);
-              showToast('Sessione aggiornata nel database locale');
+              if (cloudUser) {
+                saveSessionToCloud(updatedRecord).catch(() => {});
+              }
+              showToast('Sessione aggiornata nel database');
             }}
             onImportSessions={async (imported) => {
               const updated = await importSessionsToDB(imported);
               setSessions(updated);
+              if (cloudUser) {
+                for (const r of imported) {
+                  saveSessionToCloud(r).catch(() => {});
+                }
+              }
             }}
             onLoadDemoData={handleLoadDemoData}
+            cloudUser={cloudUser}
+            isCloudSyncing={isCloudSyncing}
+            onCloudLogin={handleCloudLogin}
+            onCloudLogout={handleCloudLogout}
           />
         )}
 

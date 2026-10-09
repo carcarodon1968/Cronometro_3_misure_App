@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "MeasurementSession": {
+      "title": "MeasurementSession",
+      "description": "A 3-trial stopwatch and flow rate measurement session owned by an authenticated user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique Firestore document ID scoped to the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recordId": {
+          "type": "string",
+          "description": "Local session identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the session owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label of the measurement session.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "description": "Measurement category (e.g., Diga Sud, Diga Nord, Flusso).",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional user notes for the measurement session.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "containerAmount": {
+          "type": "number",
+          "description": "Container volume in liters (0 if not set)."
+        },
+        "flowRatePerSec": {
+          "type": "number",
+          "description": "Calculated flow rate in liters per second."
+        },
+        "flowRatePerMin": {
+          "type": "number",
+          "description": "Calculated flow rate in liters per 60 seconds."
+        },
+        "flowRatePerHour": {
+          "type": "number",
+          "description": "Calculated flow rate in liters per 60 minutes."
+        },
+        "flowRatePer24Hours": {
+          "type": "number",
+          "description": "Calculated flow rate in liters per 24 hours."
+        },
+        "time1": {
+          "type": "number",
+          "description": "First trial time in milliseconds (0 if not recorded)."
+        },
+        "time2": {
+          "type": "number",
+          "description": "Second trial time in milliseconds (0 if not recorded)."
+        },
+        "time3": {
+          "type": "number",
+          "description": "Third trial time in milliseconds (0 if not recorded)."
+        },
+        "averageAfterStop1": {
+          "type": "number",
+          "description": "Running average after first stop in milliseconds."
+        },
+        "averageAfterStop2": {
+          "type": "number",
+          "description": "Running average after second stop in milliseconds."
+        },
+        "averageAfterStop3": {
+          "type": "number",
+          "description": "Running average after third stop in milliseconds."
+        },
+        "finalAverage": {
+          "type": "number",
+          "description": "Final average time in milliseconds."
+        },
+        "minTime": {
+          "type": "number",
+          "description": "Minimum recorded trial time in milliseconds."
+        },
+        "maxTime": {
+          "type": "number",
+          "description": "Maximum recorded trial time in milliseconds."
+        },
+        "spread": {
+          "type": "number",
+          "description": "Spread (maxTime - minTime) in milliseconds."
+        },
+        "count": {
+          "type": "number",
+          "description": "Number of recorded trials (1 to 3)."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Timing mode (independent or cumulative).",
+          "enum": ["independent", "cumulative"],
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "recordedAt": {
+          "type": "number",
+          "description": "Epoch timestamp in milliseconds when the measurement was recorded."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the cloud document was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the cloud document was last updated."
+        }
+      },
+      "required": [
+        "id",
+        "recordId",
+        "ownerId",
+        "label",
+        "category",
+        "notes",
+        "containerAmount",
+        "flowRatePerSec",
+        "flowRatePerMin",
+        "flowRatePerHour",
+        "flowRatePer24Hours",
+        "time1",
+        "time2",
+        "time3",
+        "averageAfterStop1",
+        "averageAfterStop2",
+        "averageAfterStop3",
+        "finalAverage",
+        "minTime",
+        "maxTime",
+        "spread",
+        "count",
+        "mode",
+        "recordedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/sessions/{sessionId}": {
+      "schema": {
+        "$ref": "#/entities/MeasurementSession"
+      },
+      "description": "Cloud-synced stopwatch and flow rate measurement sessions scoped per authenticated user via ownerId."
+    }
+  }
+}

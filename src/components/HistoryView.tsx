@@ -8,9 +8,13 @@ import {
 } from '../types/measurement';
 import { exportSessionsToCSV, exportSessionsToExcelXLSX } from '../db/localDatabase';
 import {
+  Cloud,
+  CloudOff,
   Download,
   FileSpreadsheet,
   FolderUp,
+  LogOut,
+  RefreshCw,
   RotateCcw,
   Search,
   Sparkles,
@@ -19,6 +23,7 @@ import {
   Edit3,
   X,
 } from 'lucide-react';
+import type { User } from 'firebase/auth';
 
 interface HistoryViewProps {
   sessions: MeasurementRecord[];
@@ -28,6 +33,10 @@ interface HistoryViewProps {
   onUpdateSession: (record: MeasurementRecord) => Promise<void>;
   onImportSessions: (records: MeasurementRecord[]) => Promise<void>;
   onLoadDemoData: () => Promise<void>;
+  cloudUser: User | null;
+  isCloudSyncing: boolean;
+  onCloudLogin: () => Promise<void>;
+  onCloudLogout: () => Promise<void>;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
@@ -38,6 +47,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   onUpdateSession,
   onImportSessions,
   onLoadDemoData,
+  cloudUser,
+  isCloudSyncing,
+  onCloudLogin,
+  onCloudLogout,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Tutte');
@@ -172,17 +185,55 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     <div className="space-y-6">
       {/* Header & Database Export Controls */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Storico Database Locale
-            </h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Archivio persistente salvato su IndexedDB con le terne di misura, il quantitativo Contenitore, le medie e il calcolo Contenitore ÷ Media
-            </p>
+        <div className="flex flex-col items-center text-center gap-4">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight text-center">
+            Storico Database Locale
+          </h2>
+
+          <div className="flex justify-center">
+            {cloudUser ? (
+              <div className="flex items-center gap-1.5">
+                <div
+                  title={`Sincronizzazione Cloud attiva per ${cloudUser.email || cloudUser.displayName || 'utente'}`}
+                  className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-950/70 border border-emerald-700/70 text-emerald-300 text-xs font-semibold flex items-center gap-2 whitespace-nowrap"
+                >
+                  {isCloudSyncing ? (
+                    <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-emerald-400" />
+                  ) : (
+                    <Cloud className="w-4 h-4 shrink-0 text-emerald-400" />
+                  )}
+                  <span className="max-w-[180px] truncate">
+                    {cloudUser.displayName?.split(' ')[0] || cloudUser.email?.split('@')[0] || 'Cloud Attivo'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCloudLogout}
+                  title="Scollega account Cloud (i dati restano salvati sul telefono)"
+                  className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onCloudLogin}
+                disabled={isCloudSyncing}
+                title="Accedi con Google per attivare il backup automatico in Cloud"
+                className="min-h-[42px] px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+              >
+                {isCloudSyncing ? (
+                  <RefreshCw className="w-4 h-4 shrink-0 animate-spin" />
+                ) : (
+                  <CloudOff className="w-4 h-4 shrink-0" />
+                )}
+                <span>☁️ Sincronizza Cloud</span>
+              </button>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
             <input
               ref={fileInputRef}
               type="file"

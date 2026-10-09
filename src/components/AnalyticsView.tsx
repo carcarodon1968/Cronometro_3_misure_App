@@ -122,17 +122,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Category filter bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Analisi Medie e Flusso (Contenitore ÷ Media)
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Confronto statistico tra il 1°, 2° e 3° campo di misura e portata calcolata nel database locale
-          </p>
-        </div>
+      <div className="flex flex-col items-center text-center gap-4">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight text-center">
+          Analisi Medie e Flusso
+        </h2>
 
-        <div className="flex items-center gap-1 p-1 bg-slate-200/70 dark:bg-slate-800 rounded-xl overflow-x-auto">
+        <div className="flex items-center justify-center gap-1 p-1 bg-slate-200/70 dark:bg-slate-800 rounded-xl overflow-x-auto max-w-full">
           {categories.map((cat) => (
             <button
               key={cat}

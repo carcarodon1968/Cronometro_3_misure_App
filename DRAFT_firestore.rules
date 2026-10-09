@@ -1,0 +1,173 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1 / Phase 4.1: Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Pillar 2: Validation Blueprint for MeasurementSession
+    function isValidMeasurementSession(data) {
+      return data.keys().hasAll([
+        'id',
+        'recordId',
+        'ownerId',
+        'label',
+        'category',
+        'notes',
+        'containerAmount',
+        'flowRatePerSec',
+        'flowRatePerMin',
+        'flowRatePerHour',
+        'flowRatePer24Hours',
+        'time1',
+        'time2',
+        'time3',
+        'averageAfterStop1',
+        'averageAfterStop2',
+        'averageAfterStop3',
+        'finalAverage',
+        'minTime',
+        'maxTime',
+        'spread',
+        'count',
+        'mode',
+        'recordedAt',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'recordId',
+        'ownerId',
+        'label',
+        'category',
+        'notes',
+        'containerAmount',
+        'flowRatePerSec',
+        'flowRatePerMin',
+        'flowRatePerHour',
+        'flowRatePer24Hours',
+        'time1',
+        'time2',
+        'time3',
+        'averageAfterStop1',
+        'averageAfterStop2',
+        'averageAfterStop3',
+        'finalAverage',
+        'minTime',
+        'maxTime',
+        'spread',
+        'count',
+        'mode',
+        'recordedAt',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.recordId) &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.label is string && data.label.size() >= 1 && data.label.size() <= 120 &&
+      data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+      data.notes is string && data.notes.size() <= 500 &&
+      data.containerAmount is number && data.containerAmount >= 0 && data.containerAmount <= 1000000 &&
+      data.flowRatePerSec is number && data.flowRatePerSec >= 0 && data.flowRatePerSec <= 1000000 &&
+      data.flowRatePerMin is number && data.flowRatePerMin >= 0 && data.flowRatePerMin <= 60000000 &&
+      data.flowRatePerHour is number && data.flowRatePerHour >= 0 && data.flowRatePerHour <= 3600000000 &&
+      data.flowRatePer24Hours is number && data.flowRatePer24Hours >= 0 && data.flowRatePer24Hours <= 86400000000 &&
+      data.time1 is number && data.time1 >= 0 && data.time1 <= 86400000 &&
+      data.time2 is number && data.time2 >= 0 && data.time2 <= 86400000 &&
+      data.time3 is number && data.time3 >= 0 && data.time3 <= 86400000 &&
+      data.averageAfterStop1 is number && data.averageAfterStop1 >= 0 && data.averageAfterStop1 <= 86400000 &&
+      data.averageAfterStop2 is number && data.averageAfterStop2 >= 0 && data.averageAfterStop2 <= 86400000 &&
+      data.averageAfterStop3 is number && data.averageAfterStop3 >= 0 && data.averageAfterStop3 <= 86400000 &&
+      data.finalAverage is number && data.finalAverage >= 0 && data.finalAverage <= 86400000 &&
+      data.minTime is number && data.minTime >= 0 && data.minTime <= 86400000 &&
+      data.maxTime is number && data.maxTime >= 0 && data.maxTime <= 86400000 &&
+      data.spread is number && data.spread >= 0 && data.spread <= 86400000 &&
+      data.count is number && data.count >= 1 && data.count <= 3 &&
+      data.mode is string && data.mode.size() >= 1 && data.mode.size() <= 20 &&
+      (data.mode == 'independent' || data.mode == 'cumulative') &&
+      data.recordedAt is number && data.recordedAt >= 0 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Collection: /sessions/{sessionId}
+    match /sessions/{sessionId} {
+      allow get: if isVerifiedUser() && isValidId(sessionId) && existing().ownerId == request.auth.uid;
+
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(sessionId) &&
+        isValidMeasurementSession(incoming()) &&
+        incoming().id == sessionId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if (
+        isVerifiedUser() &&
+        isValidId(sessionId) &&
+        isValidMeasurementSession(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().id == existing().id &&
+        incoming().recordId == existing().recordId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          // Action: UpdateMeasurementSession
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'label',
+            'category',
+            'notes',
+            'containerAmount',
+            'flowRatePerSec',
+            'flowRatePerMin',
+            'flowRatePerHour',
+            'flowRatePer24Hours',
+            'time1',
+            'time2',
+            'time3',
+            'averageAfterStop1',
+            'averageAfterStop2',
+            'averageAfterStop3',
+            'finalAverage',
+            'minTime',
+            'maxTime',
+            'spread',
+            'count',
+            'mode',
+            'recordedAt',
+            'updatedAt'
+          ])
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isValidId(sessionId) && existing().ownerId == request.auth.uid;
+    }
+  }
+}

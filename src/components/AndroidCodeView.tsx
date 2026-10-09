@@ -61,6 +61,7 @@ jobs:
             const fs = require("fs");
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
             pkg.dependencies = {
+              "firebase": "latest",
               "react": "^19.0.0",
               "react-dom": "^19.0.0",
               "lucide-react": "latest"
