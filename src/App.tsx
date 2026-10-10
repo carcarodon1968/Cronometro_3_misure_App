@@ -37,6 +37,7 @@ import {
   saveSessionToDB,
 } from './db/localDatabase';
 import {
+  type CloudSyncProfile,
   clearAllUserSessionsFromCloud,
   deleteSessionFromCloud,
   saveSessionToCloud,
@@ -46,7 +47,6 @@ import {
   subscribeToUserCloudSessions,
   syncLocalAndCloudSessions,
 } from './db/firebaseCloud';
-import type { User } from 'firebase/auth';
 import { PWAInstallButton, OfflineIndicator, AppUpdateBanner } from './components/PWAInstallButton';
 import { HistoryView } from './components/HistoryView';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -88,7 +88,7 @@ export default function App() {
   const [isLoadingDB, setIsLoadingDB] = useState<boolean>(true);
 
   // Cloud Sync State
-  const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const [cloudUser, setCloudUser] = useState<CloudSyncProfile | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
 
   // Refs
@@ -197,9 +197,14 @@ export default function App() {
     try {
       setIsCloudSyncing(true);
       const user = await signInWithGoogleCloud();
-      showToast(`Cloud attivo (${user.email || user.displayName || 'Account Google'})`);
+      setCloudUser(user);
+      const localRecords = await getAllSessions();
+      const merged = await syncLocalAndCloudSessions(localRecords);
+      const updatedLocal = await importSessionsToDB(merged);
+      setSessions(updatedLocal);
+      showToast(`Sincronizzazione Cloud completata (${updatedLocal.length} sessioni)`);
     } catch {
-      showToast('Accesso Cloud annullato o non riuscito');
+      showToast('Errore di connessione durante la sincronizzazione Cloud');
     } finally {
       setIsCloudSyncing(false);
     }

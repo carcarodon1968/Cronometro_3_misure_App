@@ -23,7 +23,7 @@ import {
   Edit3,
   X,
 } from 'lucide-react';
-import type { User } from 'firebase/auth';
+import type { CloudSyncProfile } from '../db/firebaseCloud';
 
 interface HistoryViewProps {
   sessions: MeasurementRecord[];
@@ -33,7 +33,7 @@ interface HistoryViewProps {
   onUpdateSession: (record: MeasurementRecord) => Promise<void>;
   onImportSessions: (records: MeasurementRecord[]) => Promise<void>;
   onLoadDemoData: () => Promise<void>;
-  cloudUser: User | null;
+  cloudUser: CloudSyncProfile | null;
   isCloudSyncing: boolean;
   onCloudLogin: () => Promise<void>;
   onCloudLogout: () => Promise<void>;
@@ -193,23 +193,26 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           <div className="flex justify-center">
             {cloudUser ? (
               <div className="flex items-center gap-1.5">
-                <div
-                  title={`Sincronizzazione Cloud attiva per ${cloudUser.email || cloudUser.displayName || 'utente'}`}
-                  className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-950/70 border border-emerald-700/70 text-emerald-300 text-xs font-semibold flex items-center gap-2 whitespace-nowrap"
+                <button
+                  type="button"
+                  onClick={onCloudLogin}
+                  disabled={isCloudSyncing}
+                  title="Tocca per forzare una sincronizzazione immediata con il Cloud"
+                  className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-700/70 text-emerald-300 text-xs font-semibold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-60"
                 >
                   {isCloudSyncing ? (
                     <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-emerald-400" />
                   ) : (
                     <Cloud className="w-4 h-4 shrink-0 text-emerald-400" />
                   )}
-                  <span className="max-w-[180px] truncate">
-                    {cloudUser.displayName?.split(' ')[0] || cloudUser.email?.split('@')[0] || 'Cloud Attivo'}
+                  <span>
+                    {isCloudSyncing ? 'Sincronizzazione...' : '☁️ Cloud Attivo · Sincronizza'}
                   </span>
-                </div>
+                </button>
                 <button
                   type="button"
                   onClick={onCloudLogout}
-                  title="Scollega account Cloud (i dati restano salvati sul telefono)"
+                  title="Disattiva sincronizzazione Cloud (i dati restano salvati sul dispositivo)"
                   className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 shrink-0" />
@@ -220,7 +223,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 type="button"
                 onClick={onCloudLogin}
                 disabled={isCloudSyncing}
-                title="Accedi con Google per attivare il backup automatico in Cloud"
+                title="Attiva e sincronizza automaticamente i dati nel Cloud tra PC e Smartphone"
                 className="min-h-[42px] px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
                 {isCloudSyncing ? (

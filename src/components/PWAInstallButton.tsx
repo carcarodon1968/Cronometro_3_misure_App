@@ -226,11 +226,6 @@ export const AppUpdateBanner: React.FC = () => {
     <>
       {/* Subtle quick-check & direct APK download bar inside header area */}
       <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-400">
-        {localInfo && localInfo.buildNumber > 0 && (
-          <span className="font-mono-tabular text-slate-400">
-            Build #{localInfo.buildNumber}
-          </span>
-        )}
         <button
           type="button"
           onClick={() => checkUpdates(true)}
@@ -256,7 +251,6 @@ export const AppUpdateBanner: React.FC = () => {
               <div className="text-xs sm:text-sm font-bold">
                 <span>
                   Nuovo aggiornamento disponibile: v.{remoteInfo.version}
-                  {remoteInfo.buildNumber > 0 ? ` (Build #${remoteInfo.buildNumber})` : ''}
                 </span>
                 <p className="text-[11px] font-normal text-orange-100 mt-0.5">
                   {isNativeApk

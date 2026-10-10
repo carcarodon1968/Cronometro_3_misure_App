@@ -20,6 +20,14 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidSyncKey(ownerId) {
+      return ownerId is string && ownerId.size() >= 6 && ownerId.size() <= 128 && ownerId.matches('^sync_[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAuthorizedOwner(ownerId) {
+      return (isVerifiedUser() && ownerId == request.auth.uid) || isValidSyncKey(ownerId);
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -89,7 +97,7 @@ service cloud.firestore {
       isValidId(data.id) &&
       isValidId(data.recordId) &&
       isValidId(data.ownerId) &&
-      data.ownerId == request.auth.uid &&
+      isAuthorizedOwner(data.ownerId) &&
       data.label is string && data.label.size() >= 1 && data.label.size() <= 120 &&
       data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
       data.notes is string && data.notes.size() <= 500 &&
@@ -118,26 +126,24 @@ service cloud.firestore {
 
     // Collection: /sessions/{sessionId}
     match /sessions/{sessionId} {
-      allow get: if isVerifiedUser() && isValidId(sessionId) && existing().ownerId == request.auth.uid;
+      allow get: if isValidId(sessionId) && isAuthorizedOwner(existing().ownerId);
 
-      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow list: if (isVerifiedUser() && resource.data.ownerId == request.auth.uid) ||
+        (resource.data.ownerId is string && resource.data.ownerId.size() >= 6 && resource.data.ownerId.size() <= 128);
 
-      allow create: if isVerifiedUser() &&
-        isValidId(sessionId) &&
+      allow create: if isValidId(sessionId) &&
         isValidMeasurementSession(incoming()) &&
         incoming().id == sessionId &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
 
       allow update: if (
-        isVerifiedUser() &&
         isValidId(sessionId) &&
         isValidMeasurementSession(incoming()) &&
-        existing().ownerId == request.auth.uid &&
+        isAuthorizedOwner(existing().ownerId) &&
         incoming().ownerId == existing().ownerId &&
         incoming().id == existing().id &&
         incoming().recordId == existing().recordId &&
-        incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time && (
           // Action: UpdateMeasurementSession
           incoming().diff(existing()).affectedKeys().hasOnly([
@@ -162,12 +168,13 @@ service cloud.firestore {
             'count',
             'mode',
             'recordedAt',
+            'createdAt',
             'updatedAt'
           ])
         )
       );
 
-      allow delete: if isVerifiedUser() && isValidId(sessionId) && existing().ownerId == request.auth.uid;
+      allow delete: if isValidId(sessionId) && isAuthorizedOwner(existing().ownerId);
     }
   }
 }

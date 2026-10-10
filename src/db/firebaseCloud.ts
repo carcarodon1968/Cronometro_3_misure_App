@@ -1,10 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import {
-  GoogleAuthProvider,
-  User,
   getAuth,
   onAuthStateChanged,
-  signInWithPopup,
   signOut,
 } from 'firebase/auth';
 import {
@@ -13,12 +10,11 @@ import {
   doc,
   getDocFromServer,
   getDocs,
-   getFirestore,
+  getFirestore,
   onSnapshot,
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
   where,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -28,8 +24,60 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
+export interface CloudSyncProfile {
+  uid: string;
+  displayName: string;
+  email: string | null;
+}
+
+const SHARED_CLOUD_WORKSPACE_UID = 'sync_cronometro_3_misure_cloud';
+const CLOUD_SYNC_STORAGE_KEY = 'cronometro_cloud_sync_enabled';
+
+const authListeners = new Set<(user: CloudSyncProfile | null) => void>();
+
+function isCloudSyncEnabledInStorage(): boolean {
+  try {
+    return localStorage.getItem(CLOUD_SYNC_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function setCloudSyncEnabledInStorage(enabled: boolean): void {
+  try {
+    if (enabled) {
+      localStorage.setItem(CLOUD_SYNC_STORAGE_KEY, 'true');
+    } else {
+      localStorage.removeItem(CLOUD_SYNC_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function getActiveCloudProfile(): CloudSyncProfile | null {
+  if (isCloudSyncEnabledInStorage()) {
+    return {
+      uid: SHARED_CLOUD_WORKSPACE_UID,
+      displayName: 'Cloud Attivo',
+      email: auth.currentUser?.email || 'Database Cloud Condiviso',
+    };
+  }
+  if (auth.currentUser) {
+    setCloudSyncEnabledInStorage(true);
+    return {
+      uid: SHARED_CLOUD_WORKSPACE_UID,
+      displayName: auth.currentUser.displayName || 'Cloud Attivo',
+      email: auth.currentUser.email || 'Database Cloud Condiviso',
+    };
+  }
+  return null;
+}
+
+function notifyAuthListeners(): void {
+  const profile = getActiveCloudProfile();
+  authListeners.forEach((cb) => cb(profile));
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -65,11 +113,11 @@ export function handleFirestoreError(
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
+      userId: auth.currentUser?.uid || SHARED_CLOUD_WORKSPACE_UID,
+      email: auth.currentUser?.email || null,
+      emailVerified: auth.currentUser?.emailVerified ?? null,
+      isAnonymous: auth.currentUser?.isAnonymous ?? null,
+      tenantId: auth.currentUser?.tenantId ?? null,
       providerInfo:
         auth.currentUser?.providerData?.map((provider) => ({
           providerId: provider.providerId,
@@ -94,9 +142,6 @@ async function testConnection() {
   }
 }
 testConnection();
-
-// Track which cloud document IDs already exist for the active user
-const knownExistingCloudDocIds = new Set<string>();
 
 const ID_PATTERN = /^[a-zA-Z0-9_\-]+$/;
 
@@ -196,39 +241,56 @@ function mapCloudDocToMeasurementRecord(data: Record<string, unknown>): Measurem
   };
 }
 
-export async function signInWithGoogleCloud(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
+export async function signInWithGoogleCloud(): Promise<CloudSyncProfile> {
+  setCloudSyncEnabledInStorage(true);
+  const profile: CloudSyncProfile = {
+    uid: SHARED_CLOUD_WORKSPACE_UID,
+    displayName: 'Cloud Attivo',
+    email: auth.currentUser?.email || 'Database Cloud Condiviso',
+  };
+  notifyAuthListeners();
+  return profile;
 }
 
 export async function signOutFromCloud(): Promise<void> {
-  knownExistingCloudDocIds.clear();
-  await signOut(auth);
+  setCloudSyncEnabledInStorage(false);
+  try {
+    if (auth.currentUser) {
+      await signOut(auth);
+    }
+  } catch {
+    // Ignore sign-out errors on mobile webview
+  }
+  notifyAuthListeners();
 }
 
-export function subscribeToAuthChanges(callback: (user: User | null) => void): () => void {
-  return onAuthStateChanged(auth, (user) => {
-    if (!user) {
-      knownExistingCloudDocIds.clear();
-    }
-    callback(user);
+export function subscribeToAuthChanges(callback: (user: CloudSyncProfile | null) => void): () => void {
+  authListeners.add(callback);
+  callback(getActiveCloudProfile());
+
+  const unsubFirebase = onAuthStateChanged(auth, () => {
+    callback(getActiveCloudProfile());
   });
+
+  return () => {
+    authListeners.delete(callback);
+    unsubFirebase();
+  };
 }
 
 export function subscribeToUserCloudSessions(
   uid: string,
   onSessionsUpdate: (records: MeasurementRecord[]) => void
 ): () => void {
+  const targetUid = uid || SHARED_CLOUD_WORKSPACE_UID;
   const path = 'sessions';
-  const q = query(collection(db, path), where('ownerId', '==', uid));
+  const q = query(collection(db, path), where('ownerId', '==', targetUid));
 
   return onSnapshot(
     q,
     (snapshot) => {
       const records: MeasurementRecord[] = [];
-      knownExistingCloudDocIds.clear();
       snapshot.forEach((docSnap) => {
-        knownExistingCloudDocIds.add(docSnap.id);
         records.push(mapCloudDocToMeasurementRecord(docSnap.data() as Record<string, unknown>));
       });
       records.sort((a, b) => b.createdAt - a.createdAt);
@@ -241,73 +303,40 @@ export function subscribeToUserCloudSessions(
 }
 
 export async function saveSessionToCloud(record: MeasurementRecord): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) return;
+  const profile = getActiveCloudProfile();
+  const targetUid = profile?.uid || SHARED_CLOUD_WORKSPACE_UID;
 
-  const base = buildValidatedPayloadFields(record, user.uid);
+  const base = buildValidatedPayloadFields(record, targetUid);
   const docPath = `sessions/${base.id}`;
   const docRef = doc(db, 'sessions', base.id);
 
   try {
-    if (knownExistingCloudDocIds.has(base.id)) {
-      await updateDoc(docRef, {
-        label: base.label,
-        category: base.category,
-        notes: base.notes,
-        containerAmount: base.containerAmount,
-        flowRatePerSec: base.flowRatePerSec,
-        flowRatePerMin: base.flowRatePerMin,
-        flowRatePerHour: base.flowRatePerHour,
-        flowRatePer24Hours: base.flowRatePer24Hours,
-        time1: base.time1,
-        time2: base.time2,
-        time3: base.time3,
-        averageAfterStop1: base.averageAfterStop1,
-        averageAfterStop2: base.averageAfterStop2,
-        averageAfterStop3: base.averageAfterStop3,
-        finalAverage: base.finalAverage,
-        minTime: base.minTime,
-        maxTime: base.maxTime,
-        spread: base.spread,
-        count: base.count,
-        mode: base.mode,
-        recordedAt: base.recordedAt,
-        updatedAt: serverTimestamp(),
-      });
-    } else {
-      await setDoc(docRef, {
-        ...base,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      knownExistingCloudDocIds.add(base.id);
-    }
+    await setDoc(docRef, {
+      ...base,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   } catch (error) {
-    handleFirestoreError(
-      error,
-      knownExistingCloudDocIds.has(base.id) ? OperationType.UPDATE : OperationType.CREATE,
-      docPath
-    );
+    handleFirestoreError(error, OperationType.WRITE, docPath);
   }
 }
 
 export async function deleteSessionFromCloud(recordId: string): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) return;
+  const profile = getActiveCloudProfile();
+  if (!profile) return;
 
-  const docId = buildCloudDocId(user.uid, recordId);
+  const docId = buildCloudDocId(profile.uid, recordId);
   const docPath = `sessions/${docId}`;
   try {
     await deleteDoc(doc(db, 'sessions', docId));
-    knownExistingCloudDocIds.delete(docId);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
 }
 
 export async function clearAllUserSessionsFromCloud(records: MeasurementRecord[]): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) return;
+  const profile = getActiveCloudProfile();
+  if (!profile) return;
 
   for (const r of records) {
     await deleteSessionFromCloud(r.id);
@@ -317,20 +346,25 @@ export async function clearAllUserSessionsFromCloud(records: MeasurementRecord[]
 export async function syncLocalAndCloudSessions(
   localRecords: MeasurementRecord[]
 ): Promise<MeasurementRecord[]> {
-  const user = auth.currentUser;
-  if (!user) return localRecords;
-
+  const targetUid = SHARED_CLOUD_WORKSPACE_UID;
   const path = 'sessions';
-  const q = query(collection(db, path), where('ownerId', '==', user.uid));
+  const q = query(collection(db, path), where('ownerId', '==', targetUid));
 
-  let cloudRecords: MeasurementRecord[] = [];
+  const cloudRecords: MeasurementRecord[] = [];
   try {
     const snap = await getDocs(q);
-    knownExistingCloudDocIds.clear();
     snap.forEach((docSnap) => {
-      knownExistingCloudDocIds.add(docSnap.id);
       cloudRecords.push(mapCloudDocToMeasurementRecord(docSnap.data() as Record<string, unknown>));
     });
+
+    // If user also had legacy sessions under their personal Firebase Auth UID, merge them in
+    if (auth.currentUser && auth.currentUser.uid !== targetUid) {
+      const legacyQuery = query(collection(db, path), where('ownerId', '==', auth.currentUser.uid));
+      const legacySnap = await getDocs(legacyQuery);
+      legacySnap.forEach((docSnap) => {
+        cloudRecords.push(mapCloudDocToMeasurementRecord(docSnap.data() as Record<string, unknown>));
+      });
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
   }
@@ -340,7 +374,7 @@ export async function syncLocalAndCloudSessions(
     cloudByRecordId.set(cr.id, cr);
   }
 
-  // Upload any local sessions not yet present in the Cloud
+  // Upload any local sessions not yet present in the shared Cloud workspace
   for (const localRec of localRecords) {
     if (!cloudByRecordId.has(localRec.id)) {
       await saveSessionToCloud(localRec);
