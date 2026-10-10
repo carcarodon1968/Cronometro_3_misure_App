@@ -228,3 +228,204 @@ export function parseManualTimeToMs(input: string): number | null {
   if (Number.isNaN(secs) || secs < 0) return null;
   return Math.round(secs * 1000);
 }
+
+export interface DayFolderGroup {
+  dayKey: string;
+  dayTitle: string;
+  relativeBadge: string | null;
+  timestamp: number;
+  items: MeasurementRecord[];
+  categories: string[];
+  averageFlowPerSec: number | null;
+}
+
+export interface MonthFolderGroup {
+  monthKey: string;
+  monthTitle: string;
+  yearKey: string;
+  items: MeasurementRecord[];
+  dayFolders: DayFolderGroup[];
+  categories: string[];
+  averageFlowPerSec: number | null;
+}
+
+export interface YearFolderGroup {
+  yearKey: string;
+  yearTitle: string;
+  items: MeasurementRecord[];
+  monthFolders: MonthFolderGroup[];
+  dayCount: number;
+  categories: string[];
+  averageFlowPerSec: number | null;
+}
+
+export function getDayKeyFromTimestamp(timestamp: number): string {
+  const d = new Date(timestamp);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function groupSessionsByDayFolder(records: MeasurementRecord[]): DayFolderGroup[] {
+  const now = new Date();
+  const todayKey = getDayKeyFromTimestamp(now.getTime());
+  const yesterdayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yesterdayKey = getDayKeyFromTimestamp(yesterdayDate.getTime());
+
+  const map = new Map<string, MeasurementRecord[]>();
+  for (const record of records) {
+    const key = getDayKeyFromTimestamp(record.createdAt);
+    const list = map.get(key);
+    if (list) {
+      list.push(record);
+    } else {
+      map.set(key, [record]);
+    }
+  }
+
+  const groups: DayFolderGroup[] = [];
+  for (const [dayKey, items] of map.entries()) {
+    const sampleDate = new Date(items[0].createdAt);
+    const rawFormatted = sampleDate.toLocaleDateString('it-IT', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+    // Capitalize first letter of weekday and month
+    const dayTitle = rawFormatted.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+
+    const relativeBadge =
+      dayKey === todayKey ? 'Oggi' : dayKey === yesterdayKey ? 'Ieri' : null;
+
+    const categories = Array.from(
+      new Set(items.map((i) => i.category).filter(Boolean))
+    );
+
+    const flows = items
+      .map(
+        (i) =>
+          i.flowRatePerSec ??
+          computeFlowFromAverage(i.containerAmount, i.finalAverage)
+      )
+      .filter((f): f is number => f !== null && !Number.isNaN(f));
+
+    const averageFlowPerSec =
+      flows.length > 0
+        ? flows.reduce((acc, v) => acc + v, 0) / flows.length
+        : null;
+
+    groups.push({
+      dayKey,
+      dayTitle,
+      relativeBadge,
+      timestamp: items[0].createdAt,
+      items,
+      categories,
+      averageFlowPerSec,
+    });
+  }
+
+  groups.sort((a, b) => b.dayKey.localeCompare(a.dayKey));
+  return groups;
+}
+
+export function groupSessionsByHierarchy(records: MeasurementRecord[]): YearFolderGroup[] {
+  const dayFolders = groupSessionsByDayFolder(records);
+
+  const monthMap = new Map<string, DayFolderGroup[]>();
+  for (const dayGroup of dayFolders) {
+    const monthKey = dayGroup.dayKey.slice(0, 7); // YYYY-MM
+    const list = monthMap.get(monthKey);
+    if (list) {
+      list.push(dayGroup);
+    } else {
+      monthMap.set(monthKey, [dayGroup]);
+    }
+  }
+
+  const monthFolders: MonthFolderGroup[] = [];
+  for (const [monthKey, days] of monthMap.entries()) {
+    days.sort((a, b) => b.dayKey.localeCompare(a.dayKey));
+    const sampleDate = new Date(days[0].timestamp);
+    const rawMonth = sampleDate.toLocaleDateString('it-IT', {
+      month: 'long',
+      year: 'numeric',
+    });
+    const monthTitle = rawMonth.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+    const yearKey = monthKey.slice(0, 4);
+    const items = days.flatMap((d) => d.items);
+    const categories = Array.from(
+      new Set(items.map((i) => i.category).filter(Boolean))
+    );
+    const flows = items
+      .map(
+        (i) =>
+          i.flowRatePerSec ??
+          computeFlowFromAverage(i.containerAmount, i.finalAverage)
+      )
+      .filter((f): f is number => f !== null && !Number.isNaN(f));
+    const averageFlowPerSec =
+      flows.length > 0
+        ? flows.reduce((acc, v) => acc + v, 0) / flows.length
+        : null;
+
+    monthFolders.push({
+      monthKey,
+      monthTitle,
+      yearKey,
+      items,
+      dayFolders: days,
+      categories,
+      averageFlowPerSec,
+    });
+  }
+
+  monthFolders.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+
+  const yearMap = new Map<string, MonthFolderGroup[]>();
+  for (const monthGroup of monthFolders) {
+    const list = yearMap.get(monthGroup.yearKey);
+    if (list) {
+      list.push(monthGroup);
+    } else {
+      yearMap.set(monthGroup.yearKey, [monthGroup]);
+    }
+  }
+
+  const yearFolders: YearFolderGroup[] = [];
+  for (const [yearKey, months] of yearMap.entries()) {
+    months.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+    const items = months.flatMap((m) => m.items);
+    const dayCount = months.reduce((acc, m) => acc + m.dayFolders.length, 0);
+    const categories = Array.from(
+      new Set(items.map((i) => i.category).filter(Boolean))
+    );
+    const flows = items
+      .map(
+        (i) =>
+          i.flowRatePerSec ??
+          computeFlowFromAverage(i.containerAmount, i.finalAverage)
+      )
+      .filter((f): f is number => f !== null && !Number.isNaN(f));
+    const averageFlowPerSec =
+      flows.length > 0
+        ? flows.reduce((acc, v) => acc + v, 0) / flows.length
+        : null;
+
+    yearFolders.push({
+      yearKey,
+      yearTitle: `Anno ${yearKey}`,
+      items,
+      monthFolders: months,
+      dayCount,
+      categories,
+      averageFlowPerSec,
+    });
+  }
+
+  yearFolders.sort((a, b) => b.yearKey.localeCompare(a.yearKey));
+  return yearFolders;
+}
+

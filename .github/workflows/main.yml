@@ -38,7 +38,7 @@ jobs:
       - name: Read App Version from package.json
         id: pkg
         run: |
-          VERSION=$(node -p "require('./package.json').version || '1.0.3'")
+          VERSION=$(node -p "require('./package.json').version || '1.0.4'")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Fix package.json versions, Write version.json & Build Web App
@@ -46,7 +46,7 @@ jobs:
           node -e '
             const fs = require("fs");
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            const version = pkg.version || "1.0.3";
+            const version = pkg.version || "1.0.4";
             const runNumber = Number("${{ github.run_number }}") || 1;
             const repo = "${{ github.repository }}" || "carcarodon1968/Cronometro_3_misure_App";
             pkg.dependencies = {

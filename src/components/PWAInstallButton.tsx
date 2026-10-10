@@ -16,7 +16,7 @@ const REMOTE_VERSION_URL =
 const GITHUB_RELEASES_API =
   'https://api.github.com/repos/carcarodon1968/Cronometro_3_misure_App/releases';
 const DEFAULT_APK_URL =
-  'https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.3/Cronometro_3_misure_v.1.0.3.apk';
+  'https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.4/Cronometro_3_misure_v.1.0.4.apk';
 
 function normalizeVersion(v: string): string {
   return String(v || '')
@@ -50,11 +50,16 @@ function compareVersions(v1: string, v2: string): number {
 
 function isRunningInAndroidApk(): boolean {
   if (typeof window === 'undefined') return false;
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor;
+  const cap = (
+    window as unknown as {
+      Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string };
+    }
+  ).Capacitor;
   if (cap?.isNativePlatform?.()) return true;
   if (cap?.getPlatform?.() === 'android') return true;
   const ua = navigator.userAgent || '';
   if (/wv/i.test(ua) && /Android/i.test(ua)) return true;
+  if (/Android/i.test(ua) && window.location.hostname === 'localhost') return true;
   return false;
 }
 
@@ -87,7 +92,7 @@ export const AppUpdateBanner: React.FC = () => {
 
       // 1. Read local bundled version.json
       let currentLocal: VersionManifest = {
-        version: '1.0.3',
+        version: '1.0.4',
         buildNumber: 0,
         apkUrl: DEFAULT_APK_URL,
       };
@@ -128,7 +133,7 @@ export const AppUpdateBanner: React.FC = () => {
               );
               const highestRelease = sortedReleases[0];
               const tagVersion =
-                normalizeVersion(highestRelease?.tag_name || '') || '1.0.3';
+                normalizeVersion(highestRelease?.tag_name || '') || '1.0.4';
               const apkAsset = Array.isArray(highestRelease?.assets)
                 ? highestRelease.assets.find((a: { name?: string }) =>
                     String(a.name || '').endsWith('.apk')
@@ -195,7 +200,7 @@ export const AppUpdateBanner: React.FC = () => {
     };
   }, [checkUpdates, isOnline]);
 
-  const handleWebAppReload = async () => {
+  const handleWebAppReload = useCallback(async () => {
     try {
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -214,7 +219,27 @@ export const AppUpdateBanner: React.FC = () => {
       // Ignore cache clear errors
     }
     window.location.reload();
-  };
+  }, []);
+
+  // On the Web App (browser or installed PWA), trigger silent auto-update if a newer build is detected
+  useEffect(() => {
+    if (!isNativeApk && updateAvailable && remoteInfo) {
+      const autoReloadKey = `cronometro3_autoreload_${remoteInfo.version}_${remoteInfo.buildNumber}`;
+      try {
+        if (!sessionStorage.getItem(autoReloadKey)) {
+          sessionStorage.setItem(autoReloadKey, '1');
+          handleWebAppReload();
+        }
+      } catch {
+        // Ignore sessionStorage errors
+      }
+    }
+  }, [isNativeApk, updateAvailable, remoteInfo, handleWebAppReload]);
+
+  // Show the Verifica Aggiornamenti button and APK update banner ONLY inside the Android APK
+  if (!isNativeApk) {
+    return null;
+  }
 
   const apkDownloadUrl = remoteInfo?.apkUrl || localInfo?.apkUrl || DEFAULT_APK_URL;
   const showBanner =
@@ -224,14 +249,14 @@ export const AppUpdateBanner: React.FC = () => {
 
   return (
     <>
-      {/* Subtle quick-check & direct APK download bar inside header area */}
+      {/* Subtle quick-check & direct APK download bar inside header area (APK only) */}
       <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-400">
         <button
           type="button"
           onClick={() => checkUpdates(true)}
           disabled={isChecking}
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-semibold border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
-          title="Controlla se è disponibile un nuovo aggiornamento su GitHub"
+          title="Controlla se è disponibile un nuovo aggiornamento APK su GitHub"
         >
           <RefreshCw className={`w-3 h-3 text-orange-400 ${isChecking ? 'animate-spin' : ''}`} />
           <span>{isChecking ? 'Controllo...' : 'Verifica Aggiornamenti'}</span>
@@ -242,7 +267,7 @@ export const AppUpdateBanner: React.FC = () => {
         )}
       </div>
 
-      {/* Automatic Update Banner when a new GitHub build/version is detected */}
+      {/* Automatic Update Banner when a new GitHub APK build/version is detected */}
       {showBanner && remoteInfo && (
         <div className="w-full bg-gradient-to-r from-orange-600 to-amber-600 text-white px-4 py-3 shadow-lg border-b border-orange-400/40">
           <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -253,25 +278,12 @@ export const AppUpdateBanner: React.FC = () => {
                   Nuovo aggiornamento disponibile: v.{remoteInfo.version}
                 </span>
                 <p className="text-[11px] font-normal text-orange-100 mt-0.5">
-                  {isNativeApk
-                    ? 'Scarica e installa il nuovo APK direttamente sopra questa versione senza perdere i dati del database.'
-                    : 'È stata pubblicata una nuova versione su GitHub.'}
+                  Scarica e installa il nuovo APK direttamente sopra questa versione senza perdere i dati del database.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {!isNativeApk && (
-                <button
-                  type="button"
-                  onClick={handleWebAppReload}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-orange-700 hover:bg-orange-50 text-xs font-extrabold shadow-sm transition-colors cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Aggiorna Web App</span>
-                </button>
-              )}
-
               <a
                 href={apkDownloadUrl}
                 target="_blank"

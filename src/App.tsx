@@ -3,14 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Database,
   Edit3,
+  Folder,
+  FolderOpen,
   History,
   Play,
   RotateCcw,
@@ -25,6 +29,7 @@ import {
   computeStatsFromTimes,
   formatFlowValue,
   formatTimeParts,
+  groupSessionsByHierarchy,
   parseContainerAmount,
   parseManualTimeToMs,
 } from './types/measurement';
@@ -86,6 +91,11 @@ export default function App() {
   // Local Database History State
   const [sessions, setSessions] = useState<MeasurementRecord[]>([]);
   const [isLoadingDB, setIsLoadingDB] = useState<boolean>(true);
+  const [recentOpenFolders, setRecentOpenFolders] = useState<Record<string, boolean>>({});
+
+  const recentYearFolders = useMemo(() => {
+    return groupSessionsByHierarchy(sessions);
+  }, [sessions]);
 
   // Cloud Sync State
   const [cloudUser, setCloudUser] = useState<CloudSyncProfile | null>(null);
@@ -232,7 +242,24 @@ export default function App() {
   const parsedContainerAmount = parseContainerAmount(containerInput);
   const currentStats = computeStatsFromTimes(time1, time2, time3, parsedContainerAmount);
 
-  // Save a session record into IndexedDB
+  const resetMeasurementCounts = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setIsRunning(false);
+    setElapsedMs(0);
+    setPendingTimeMs(null);
+    setTime1(null);
+    setTime2(null);
+    setTime3(null);
+    setActiveSlot(1);
+    setLastSavedId(null);
+    setEditingSlot(null);
+    setManualInputValue('');
+  }, []);
+
+  // Save a session record into IndexedDB and reset all measurement counts
   const persistRecordToLocalDB = useCallback(
     async (
       t1: number | null,
@@ -274,9 +301,11 @@ export default function App() {
         createdAt: Date.now(),
       };
 
+      // Reset all counts and stopwatch state immediately upon saving
+      resetMeasurementCounts();
+
       const updatedList = await saveSessionToDB(record);
       setSessions(updatedList);
-      setLastSavedId(record.id);
 
       if (cloudUser) {
         saveSessionToCloud(record).catch(() => {});
@@ -299,6 +328,7 @@ export default function App() {
     },
     [
       containerInput,
+      resetMeasurementCounts,
       sessionCategory,
       sessionLabel,
       sessionNotes,
@@ -385,33 +415,33 @@ export default function App() {
     const nextT2 = activeSlot === 2 ? finalMeasuredMs : time2;
     const nextT3 = activeSlot === 3 ? finalMeasuredMs : time3;
 
-    setTime1(nextT1);
-    setTime2(nextT2);
-    setTime3(nextT3);
-    setPendingTimeMs(null);
-    setElapsedMs(0);
-
-    const containerVal = parseContainerAmount(containerInput);
-    const statsAfterStop = computeStatsFromTimes(nextT1, nextT2, nextT3, containerVal);
-    const runningAvg = statsAfterStop.currentAverage ?? finalMeasuredMs;
-    const runningFlow = statsAfterStop.currentFlowPerSec;
-
-    // Determine next empty slot (1 -> 2 -> 3 -> 1)
-    let nextSlot: 1 | 2 | 3 = 1;
-    if (activeSlot === 1) {
-      nextSlot = nextT2 === null ? 2 : nextT3 === null ? 3 : 2;
-    } else if (activeSlot === 2) {
-      nextSlot = nextT3 === null ? 3 : nextT1 === null ? 1 : 3;
-    } else {
-      nextSlot = 1;
-    }
-    setActiveSlot(nextSlot);
-
-    // If all 3 fields are now filled and auto-save is active, save immediately to local DB
+    // If all 3 fields are now filled and auto-save is active, save immediately to local DB (which resets all counts & Avvia button)
     const allThreeFilled = nextT1 !== null && nextT2 !== null && nextT3 !== null;
     if (allThreeFilled && autoSaveOnThirdStop) {
       persistRecordToLocalDB(nextT1, nextT2, nextT3, lastSavedId, true);
     } else {
+      const containerVal = parseContainerAmount(containerInput);
+      const statsAfterStop = computeStatsFromTimes(nextT1, nextT2, nextT3, containerVal);
+      const runningAvg = statsAfterStop.currentAverage ?? finalMeasuredMs;
+      const runningFlow = statsAfterStop.currentFlowPerSec;
+
+      // Determine next empty slot (1 -> 2 -> 3 -> 1)
+      let nextSlot: 1 | 2 | 3 = 1;
+      if (activeSlot === 1) {
+        nextSlot = nextT2 === null ? 2 : nextT3 === null ? 3 : 2;
+      } else if (activeSlot === 2) {
+        nextSlot = nextT3 === null ? 3 : nextT1 === null ? 1 : 3;
+      } else {
+        nextSlot = 1;
+      }
+
+      setTime1(nextT1);
+      setTime2(nextT2);
+      setTime3(nextT3);
+      setPendingTimeMs(null);
+      setElapsedMs(0);
+      setActiveSlot(nextSlot);
+
       const flowToast =
         runningFlow !== null
           ? ` · ${formatFlowValue(runningFlow)} l/s`
@@ -455,16 +485,8 @@ export default function App() {
       return;
     }
 
-    setIsRunning(false);
-    setElapsedMs(0);
-    setPendingTimeMs(null);
-    setTime1(null);
-    setTime2(null);
-    setTime3(null);
-    setActiveSlot(1);
-    setLastSavedId(null);
-    setEditingSlot(null);
-  }, [activeSlot, isRunning, lastSavedId, pendingTimeMs, showToast]);
+    resetMeasurementCounts();
+  }, [activeSlot, isRunning, lastSavedId, pendingTimeMs, resetMeasurementCounts, showToast]);
 
   // Keyboard shortcuts (Space = Start/Stop, Enter = Validate, R = Reset) when not typing in an input
   useEffect(() => {
@@ -688,7 +710,7 @@ export default function App() {
         >
           <span>Cronometro 3 misure</span>
           <span className="text-xs font-mono-tabular font-semibold text-orange-400/90">
-            v.1.0.3
+            v.1.0.4
           </span>
         </a>
 
@@ -1158,131 +1180,367 @@ export default function App() {
                   </p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-800">
-                  {sessions.slice(0, 5).map((item) => {
-                    const timeStr = new Date(item.createdAt).toLocaleString('it-IT', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    });
-                    const itemFlow =
-                      item.flowRatePerSec ??
-                      computeFlowFromAverage(item.containerAmount, item.finalAverage);
-                    const itemFlow60s =
-                      item.flowRatePerMin ??
-                      (itemFlow !== null ? itemFlow * 60 : null);
-                    const itemFlow60m =
-                      item.flowRatePerHour ??
-                      (itemFlow !== null ? itemFlow * 3600 : null);
-                    const itemFlow24h =
-                      item.flowRatePer24Hours ??
-                      (itemFlow !== null ? itemFlow * 86400 : null);
+                <div className="mt-4 space-y-3">
+                  {recentYearFolders.map((yearFolder, yearIdx) => {
+                    const yearStateKey = `year:${yearFolder.yearKey}`;
+                    const isYearOpen =
+                      recentOpenFolders[yearStateKey] !== undefined
+                        ? recentOpenFolders[yearStateKey]
+                        : yearIdx === 0;
 
                     return (
                       <div
-                        key={item.id}
-                        className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        key={yearFolder.yearKey}
+                        className="bg-slate-950/70 border border-slate-700/80 rounded-2xl overflow-hidden"
                       >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-bold text-cyan-400">
-                              {item.category}
-                            </span>
-                            <span aria-hidden="true" className="text-xs font-bold text-cyan-400 leading-none">
-                              •
-                            </span>
-                            <span className="text-sm font-bold text-cyan-400">
-                              {item.label}
-                            </span>
-                          </div>
-                          {/* Clean unboxed metadata with · separators */}
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-300 font-mono-tabular">
-                            <span className="font-sans text-amber-300">{timeStr}</span>
-                            {item.containerAmount !== null &&
-                              item.containerAmount !== undefined && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="text-slate-200 font-semibold">
-                                    Contenitore Lt: {item.containerAmount}
-                                  </span>
-                                </>
-                              )}
-                            <span aria-hidden="true">·</span>
-                            <span>1°: {formatTimeParts(item.time1).full}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>2°: {formatTimeParts(item.time2).full}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>3°: {formatTimeParts(item.time3).full}</span>
-                          </div>
-                          {itemFlow !== null && (
-                            <div className="mt-2 flex flex-col gap-1 text-xs font-mono-tabular text-slate-300">
-                              <div>
-                                <span className="text-slate-400 font-sans">60 Secondi:</span>{' '}
-                                <strong className="text-emerald-400">
-                                  {itemFlow60s !== null ? `${itemFlow60s.toFixed(2)} l` : '--'}
-                                </strong>
-                              </div>
-                              <div>
-                                <span className="text-slate-400 font-sans">60 Minuti:</span>{' '}
-                                <strong className="text-emerald-400">
-                                  {itemFlow60m !== null ? `${itemFlow60m.toFixed(2)} l` : '--'}
-                                </strong>
-                              </div>
-                              <div>
-                                <span className="text-slate-400 font-sans">24 Ore:</span>{' '}
-                                <strong className="text-emerald-400">
-                                  {itemFlow24h !== null ? `${itemFlow24h.toFixed(2)} l` : '--'}
-                                </strong>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-5">
-                          {itemFlow !== null && (
-                            <div className="text-left sm:text-right">
-                              <span className="text-[11px] text-slate-400 block">
-                                Contenitore ÷ Media
+                        {/* Annual Folder Header */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRecentOpenFolders((prev) => ({
+                              ...prev,
+                              [yearStateKey]: !isYearOpen,
+                            }))
+                          }
+                          className="w-full px-4 py-3.5 bg-slate-800/80 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {isYearOpen ? (
+                              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                            )}
+                            {isYearOpen ? (
+                              <FolderOpen className="w-5 h-5 text-orange-500 shrink-0" />
+                            ) : (
+                              <Folder className="w-5 h-5 text-orange-500 shrink-0" />
+                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-bold uppercase tracking-wider text-orange-400">
+                                Cartella Annuale ·
                               </span>
-                              <span className="text-lg font-bold font-mono-tabular text-emerald-400">
-                                {formatFlowValue(itemFlow)} l/s
+                              <span className="text-base font-bold text-white">
+                                {yearFolder.yearTitle}
                               </span>
                             </div>
-                          )}
-
-                          <div className="text-center">
-                            <span className="text-[11px] text-slate-400 block">
-                              Media tempi
-                            </span>
-                            <span className="text-lg font-bold font-mono-tabular text-orange-400">
-                              {formatTimeParts(item.finalAverage).fullMs}
-                            </span>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleLoadSessionIntoChrono(item)}
-                              title="Ricarica nei 3 campi"
-                              className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={async () => {
-                                const updated = await deleteSessionFromDB(item.id);
-                                setSessions(updated);
-                                if (cloudUser) {
-                                  deleteSessionFromCloud(item.id).catch(() => {});
-                                }
-                              }}
-                              title="Elimina"
-                              className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 flex items-center justify-center cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <span className="text-xs font-semibold text-amber-300 whitespace-nowrap">
+                            {yearFolder.monthFolders.length}{' '}
+                            {yearFolder.monthFolders.length === 1 ? 'mese' : 'mesi'} ·{' '}
+                            {yearFolder.items.length}{' '}
+                            {yearFolder.items.length === 1 ? 'misura' : 'misure'}
+                          </span>
+                        </button>
+
+                        {/* Monthly Folders inside Annual Folder */}
+                        {isYearOpen && (
+                          <div className="p-3 space-y-2.5 border-t border-slate-800 bg-slate-950/60">
+                            {yearFolder.monthFolders.map((monthFolder, monthIdx) => {
+                              const monthStateKey = `month:${monthFolder.monthKey}`;
+                              const isMonthOpen =
+                                recentOpenFolders[monthStateKey] !== undefined
+                                  ? recentOpenFolders[monthStateKey]
+                                  : yearIdx === 0 && monthIdx === 0;
+
+                              return (
+                                <div
+                                  key={monthFolder.monthKey}
+                                  className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden"
+                                >
+                                  {/* Monthly Folder Header */}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setRecentOpenFolders((prev) => ({
+                                        ...prev,
+                                        [monthStateKey]: !isMonthOpen,
+                                      }))
+                                    }
+                                    className="w-full px-4 py-3 bg-slate-800/50 hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      {isMonthOpen ? (
+                                        <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                                      )}
+                                      {isMonthOpen ? (
+                                        <FolderOpen className="w-4 h-4 text-cyan-400 shrink-0" />
+                                      ) : (
+                                        <Folder className="w-4 h-4 text-cyan-400 shrink-0" />
+                                      )}
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                                          Cartella Mensile ·
+                                        </span>
+                                        <span className="text-sm font-bold text-white">
+                                          {monthFolder.monthTitle}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <span className="text-xs font-semibold text-amber-300 whitespace-nowrap">
+                                      {monthFolder.dayFolders.length}{' '}
+                                      {monthFolder.dayFolders.length === 1 ? 'giorno' : 'giorni'} ·{' '}
+                                      {monthFolder.items.length}{' '}
+                                      {monthFolder.items.length === 1 ? 'misura' : 'misure'}
+                                    </span>
+                                  </button>
+
+                                  {/* Daily Subfolders inside Monthly Folder */}
+                                  {isMonthOpen && (
+                                    <div className="p-2.5 space-y-2 border-t border-slate-800/80 bg-slate-950/50">
+                                      {monthFolder.dayFolders.map((folder, folderIdx) => {
+                                        const dayStateKey = `day:${folder.dayKey}`;
+                                        const isOpen =
+                                          recentOpenFolders[dayStateKey] !== undefined
+                                            ? recentOpenFolders[dayStateKey]
+                                            : yearIdx === 0 &&
+                                              monthIdx === 0 &&
+                                              folderIdx === 0;
+
+                                        return (
+                                          <div
+                                            key={folder.dayKey}
+                                            className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden"
+                                          >
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setRecentOpenFolders((prev) => ({
+                                                  ...prev,
+                                                  [dayStateKey]: !isOpen,
+                                                }))
+                                              }
+                                              className="w-full px-4 py-3 bg-slate-800/60 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
+                                            >
+                                              <div className="flex items-center gap-2.5">
+                                                {isOpen ? (
+                                                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                                                ) : (
+                                                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                                                )}
+                                                {isOpen ? (
+                                                  <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                                                ) : (
+                                                  <Folder className="w-4 h-4 text-amber-400 shrink-0" />
+                                                )}
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  {folder.relativeBadge && (
+                                                    <span className="text-xs font-bold text-orange-400">
+                                                      {folder.relativeBadge} ·
+                                                    </span>
+                                                  )}
+                                                  <span className="text-sm font-bold text-white">
+                                                    {folder.dayTitle}
+                                                  </span>
+                                                </div>
+                                              </div>
+
+                                              <span className="text-xs font-semibold text-amber-300 whitespace-nowrap">
+                                                {folder.items.length}{' '}
+                                                {folder.items.length === 1
+                                                  ? 'misura'
+                                                  : 'misure'}
+                                              </span>
+                                            </button>
+
+                                            {isOpen && (
+                                              <div className="px-4 divide-y divide-slate-800/80 border-t border-slate-800/80">
+                                                {folder.items.map((item) => {
+                                                  const timeStr = new Date(
+                                                    item.createdAt
+                                                  ).toLocaleTimeString('it-IT', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                  });
+                                                  const itemFlow =
+                                                    item.flowRatePerSec ??
+                                                    computeFlowFromAverage(
+                                                      item.containerAmount,
+                                                      item.finalAverage
+                                                    );
+                                                  const itemFlow60s =
+                                                    item.flowRatePerMin ??
+                                                    (itemFlow !== null
+                                                      ? itemFlow * 60
+                                                      : null);
+                                                  const itemFlow60m =
+                                                    item.flowRatePerHour ??
+                                                    (itemFlow !== null
+                                                      ? itemFlow * 3600
+                                                      : null);
+                                                  const itemFlow24h =
+                                                    item.flowRatePer24Hours ??
+                                                    (itemFlow !== null
+                                                      ? itemFlow * 86400
+                                                      : null);
+
+                                                  return (
+                                                    <div
+                                                      key={item.id}
+                                                      className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                                    >
+                                                      <div>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                          <span className="text-sm font-bold text-cyan-400">
+                                                            {item.category}
+                                                          </span>
+                                                          <span
+                                                            aria-hidden="true"
+                                                            className="text-xs font-bold text-cyan-400 leading-none"
+                                                          >
+                                                            •
+                                                          </span>
+                                                          <span className="text-sm font-bold text-cyan-400">
+                                                            {item.label}
+                                                          </span>
+                                                        </div>
+                                                        {/* Clean unboxed metadata with · separators */}
+                                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-300 font-mono-tabular">
+                                                          <span className="font-sans text-amber-300 font-semibold">
+                                                            Ore {timeStr}
+                                                          </span>
+                                                          {item.containerAmount !==
+                                                            null &&
+                                                            item.containerAmount !==
+                                                              undefined && (
+                                                              <>
+                                                                <span aria-hidden="true">
+                                                                  ·
+                                                                </span>
+                                                                <span className="text-slate-200 font-semibold">
+                                                                  Contenitore Lt:{' '}
+                                                                  {item.containerAmount}
+                                                                </span>
+                                                              </>
+                                                            )}
+                                                          <span aria-hidden="true">·</span>
+                                                          <span>
+                                                            1°:{' '}
+                                                            {formatTimeParts(item.time1).full}
+                                                          </span>
+                                                          <span aria-hidden="true">·</span>
+                                                          <span>
+                                                            2°:{' '}
+                                                            {formatTimeParts(item.time2).full}
+                                                          </span>
+                                                          <span aria-hidden="true">·</span>
+                                                          <span>
+                                                            3°:{' '}
+                                                            {formatTimeParts(item.time3).full}
+                                                          </span>
+                                                        </div>
+                                                        {itemFlow !== null && (
+                                                          <div className="mt-2 flex flex-col gap-1 text-xs font-mono-tabular text-slate-300">
+                                                            <div>
+                                                              <span className="text-slate-400 font-sans">
+                                                                60 Secondi:
+                                                              </span>{' '}
+                                                              <strong className="text-emerald-400">
+                                                                {itemFlow60s !== null
+                                                                  ? `${itemFlow60s.toFixed(2)} l`
+                                                                  : '--'}
+                                                              </strong>
+                                                            </div>
+                                                            <div>
+                                                              <span className="text-slate-400 font-sans">
+                                                                60 Minuti:
+                                                              </span>{' '}
+                                                              <strong className="text-emerald-400">
+                                                                {itemFlow60m !== null
+                                                                  ? `${itemFlow60m.toFixed(2)} l`
+                                                                  : '--'}
+                                                              </strong>
+                                                            </div>
+                                                            <div>
+                                                              <span className="text-slate-400 font-sans">
+                                                                24 Ore:
+                                                              </span>{' '}
+                                                              <strong className="text-emerald-400">
+                                                                {itemFlow24h !== null
+                                                                  ? `${itemFlow24h.toFixed(2)} l`
+                                                                  : '--'}
+                                                              </strong>
+                                                            </div>
+                                                          </div>
+                                                        )}
+                                                      </div>
+
+                                                      <div className="flex items-center justify-between sm:justify-end gap-5">
+                                                        {itemFlow !== null && (
+                                                          <div className="text-left sm:text-right">
+                                                            <span className="text-[11px] text-slate-400 block">
+                                                              Contenitore ÷ Media
+                                                            </span>
+                                                            <span className="text-lg font-bold font-mono-tabular text-emerald-400">
+                                                              {formatFlowValue(itemFlow)}{' '}
+                                                              l/s
+                                                            </span>
+                                                          </div>
+                                                        )}
+
+                                                        <div className="text-center">
+                                                          <span className="text-[11px] text-slate-400 block">
+                                                            Media tempi
+                                                          </span>
+                                                          <span className="text-lg font-bold font-mono-tabular text-orange-400">
+                                                            {
+                                                              formatTimeParts(
+                                                                item.finalAverage
+                                                              ).fullMs
+                                                            }
+                                                          </span>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1">
+                                                          <button
+                                                            onClick={() =>
+                                                              handleLoadSessionIntoChrono(
+                                                                item
+                                                              )
+                                                            }
+                                                            title="Ricarica nei 3 campi"
+                                                            className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer"
+                                                          >
+                                                            <RotateCcw className="w-4 h-4" />
+                                                          </button>
+                                                          <button
+                                                            onClick={async () => {
+                                                              const updated =
+                                                                await deleteSessionFromDB(
+                                                                  item.id
+                                                                );
+                                                              setSessions(updated);
+                                                              if (cloudUser) {
+                                                                deleteSessionFromCloud(
+                                                                  item.id
+                                                                ).catch(() => {});
+                                                              }
+                                                            }}
+                                                            title="Elimina"
+                                                            className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 flex items-center justify-center cursor-pointer"
+                                                          >
+                                                            <Trash2 className="w-4 h-4" />
+                                                          </button>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
