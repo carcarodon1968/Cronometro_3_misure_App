@@ -77,6 +77,14 @@ export default function App() {
   const [time2, setTime2] = useState<number | null>(null);
   const [time3, setTime3] = useState<number | null>(null);
 
+  // Retained measurements for the "Media dei tempi registrati" panel after saving, cleared on next "Avvia"
+  const [retainedStatsTimes, setRetainedStatsTimes] = useState<{
+    time1: number | null;
+    time2: number | null;
+    time3: number | null;
+    containerAmount: number | null;
+  } | null>(null);
+
   // Top Session Inputs (Placed above the stopwatch: Categoria with Diga Sud, Nome Misura, Litri Contenitore empty by default)
   const [sessionCategory, setSessionCategory] = useState<string>('Diga Sud');
   const [sessionLabel, setSessionLabel] = useState<string>('');
@@ -247,6 +255,23 @@ export default function App() {
   // Parsed container quantity & derived statistics (works for 1, 2, or 3 recorded times)
   const parsedContainerAmount = parseContainerAmount(containerInput);
   const currentStats = computeStatsFromTimes(time1, time2, time3, parsedContainerAmount);
+  const panelContainerAmount =
+    currentStats.count > 0
+      ? parsedContainerAmount
+      : retainedStatsTimes
+      ? retainedStatsTimes.containerAmount ?? parsedContainerAmount
+      : parsedContainerAmount;
+  const panelStats =
+    currentStats.count > 0
+      ? currentStats
+      : retainedStatsTimes
+      ? computeStatsFromTimes(
+          retainedStatsTimes.time1,
+          retainedStatsTimes.time2,
+          retainedStatsTimes.time3,
+          panelContainerAmount
+        )
+      : currentStats;
 
   const resetMeasurementCounts = useCallback(() => {
     if (rafRef.current !== null) {
@@ -307,7 +332,14 @@ export default function App() {
         createdAt: Date.now(),
       };
 
-      // Reset all counts and stopwatch state immediately upon saving
+      // Keep the recorded values visible in the "Media dei tempi registrati" window until the next "Avvia",
+      // and reset only the stopwatch state
+      setRetainedStatsTimes({
+        time1: t1,
+        time2: t2,
+        time3: t3,
+        containerAmount: containerVal,
+      });
       resetMeasurementCounts();
 
       const updatedList = await saveSessionToDB(record);
@@ -361,6 +393,9 @@ export default function App() {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(30);
     }
+
+    // Clear retained values in "Media dei tempi registrati" when starting the next measurement session
+    setRetainedStatsTimes(null);
 
     // If all 3 fields are already filled and we are starting a brand-new cycle on Slot 1, clear for the new session
     if (time1 !== null && time2 !== null && time3 !== null && activeSlot === 1) {
@@ -421,9 +456,9 @@ export default function App() {
     const nextT2 = activeSlot === 2 ? finalMeasuredMs : time2;
     const nextT3 = activeSlot === 3 ? finalMeasuredMs : time3;
 
-    // If all 3 fields are now filled and auto-save is active, save immediately to local DB (which resets all counts & Avvia button)
+    // If 3rd datum is validated (or all 3 fields are filled) and auto-save is active, save immediately to local DB
     const allThreeFilled = nextT1 !== null && nextT2 !== null && nextT3 !== null;
-    if (allThreeFilled && autoSaveOnThirdStop) {
+    if ((activeSlot === 3 || allThreeFilled) && autoSaveOnThirdStop) {
       persistRecordToLocalDB(nextT1, nextT2, nextT3, lastSavedId, true);
     } else {
       const containerVal = parseContainerAmount(containerInput);
@@ -550,6 +585,7 @@ export default function App() {
     }
     setIsRunning(false);
     setPendingTimeMs(null);
+    setRetainedStatsTimes(null);
     setTime1(record.time1);
     setTime2(record.time2);
     setTime3(record.time3);
@@ -670,10 +706,10 @@ export default function App() {
   };
 
   const formattedLive = formatTimeParts(elapsedMs);
-  const formattedAvg = formatTimeParts(currentStats.currentAverage);
+  const formattedAvg = formatTimeParts(panelStats.currentAverage);
   const avgInSeconds =
-    currentStats.currentAverage !== null
-      ? (currentStats.currentAverage / 1000).toFixed(3)
+    panelStats.currentAverage !== null
+      ? (panelStats.currentAverage / 1000).toFixed(3)
       : null;
 
   const slotsData: Array<{
@@ -1030,16 +1066,16 @@ export default function App() {
                         <span>Media dei tempi registrati</span>
                         <span aria-hidden="true">·</span>
                         <span className="text-orange-400 font-semibold">
-                          {currentStats.count === 0
+                          {panelStats.count === 0
                             ? 'In attesa del 1° Stop'
-                            : `Su ${currentStats.count}/3 ${
-                                currentStats.count === 1 ? 'misura' : 'misure'
+                            : `Su ${panelStats.count}/3 ${
+                                panelStats.count === 1 ? 'misura' : 'misure'
                               }`}
                         </span>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2 font-mono-tabular">
                         <span className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
-                          {currentStats.currentAverage !== null
+                          {panelStats.currentAverage !== null
                             ? `${formattedAvg.minutes}:${formattedAvg.seconds}.${formattedAvg.centiseconds}`
                             : '--:--.--'}
                         </span>
@@ -1050,14 +1086,14 @@ export default function App() {
                         )}
                       </div>
                       <div className="mt-2 flex items-center gap-3 text-xs text-slate-400 font-mono-tabular">
-                        <span>Min: {formatTimeParts(currentStats.minTime).full}</span>
+                        <span>Min: {formatTimeParts(panelStats.minTime).full}</span>
                         <span aria-hidden="true">·</span>
-                        <span>Max: {formatTimeParts(currentStats.maxTime).full}</span>
+                        <span>Max: {formatTimeParts(panelStats.maxTime).full}</span>
                         <span aria-hidden="true">·</span>
                         <span>
                           Scarto:{' '}
-                          {currentStats.spread !== null
-                            ? `±${formatTimeParts(currentStats.spread).full}`
+                          {panelStats.spread !== null
+                            ? `±${formatTimeParts(panelStats.spread).full}`
                             : '--'}
                         </span>
                       </div>
@@ -1070,16 +1106,16 @@ export default function App() {
                           Contenitore ÷ Media Tempi
                         </span>
                         <span className="font-mono-tabular text-slate-400">
-                          {parsedContainerAmount !== null
-                            ? `Contenitore: ${parsedContainerAmount}`
+                          {panelContainerAmount !== null
+                            ? `Contenitore: ${panelContainerAmount}`
                             : 'Contenitore non inserito'}
                         </span>
                       </div>
 
                       <div className="mt-2 flex flex-wrap items-baseline gap-2 font-mono-tabular">
                         <span className="text-3xl sm:text-4xl font-bold tracking-tight text-emerald-400">
-                          {currentStats.currentFlowPerSec !== null
-                            ? formatFlowValue(currentStats.currentFlowPerSec)
+                          {panelStats.currentFlowPerSec !== null
+                            ? formatFlowValue(panelStats.currentFlowPerSec)
                             : '--'}
                         </span>
                         <span className="text-sm font-semibold text-emerald-300">
@@ -1088,11 +1124,11 @@ export default function App() {
                       </div>
 
                       <div className="mt-2 text-xs text-slate-400 font-mono-tabular">
-                        {parsedContainerAmount !== null && avgInSeconds !== null ? (
+                        {panelContainerAmount !== null && avgInSeconds !== null ? (
                           <span>
-                            Calcolo: {parsedContainerAmount} ÷ {avgInSeconds} s ={' '}
+                            Calcolo: {panelContainerAmount} ÷ {avgInSeconds} s ={' '}
                             <strong className="text-white">
-                              {formatFlowValue(currentStats.currentFlowPerSec)} l/s
+                              {formatFlowValue(panelStats.currentFlowPerSec)} l/s
                             </strong>
                           </span>
                         ) : (
@@ -1107,24 +1143,24 @@ export default function App() {
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-slate-400 font-sans">60 Secondi:</span>
                           <span className="font-semibold text-emerald-300">
-                            {currentStats.currentFlowPerMin !== null
-                              ? `${currentStats.currentFlowPerMin.toFixed(2)} l`
+                            {panelStats.currentFlowPerMin !== null
+                              ? `${panelStats.currentFlowPerMin.toFixed(2)} l`
                               : '--'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-slate-400 font-sans">60 Minuti:</span>
                           <span className="font-semibold text-emerald-300">
-                            {currentStats.currentFlowPerHour !== null
-                              ? `${currentStats.currentFlowPerHour.toFixed(2)} l`
+                            {panelStats.currentFlowPerHour !== null
+                              ? `${panelStats.currentFlowPerHour.toFixed(2)} l`
                               : '--'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-slate-400 font-sans">24 Ore:</span>
                           <span className="font-semibold text-emerald-300">
-                            {currentStats.currentFlowPer24Hours !== null
-                              ? `${currentStats.currentFlowPer24Hours.toFixed(2)} l`
+                            {panelStats.currentFlowPer24Hours !== null
+                              ? `${panelStats.currentFlowPer24Hours.toFixed(2)} l`
                               : '--'}
                           </span>
                         </div>
@@ -1136,10 +1172,28 @@ export default function App() {
                 {/* PULSANTE SALVA NEL DB LOCALE */}
                 <div className="pt-1">
                   <button
-                    onClick={() =>
-                      persistRecordToLocalDB(time1, time2, time3, lastSavedId, false)
-                    }
-                    disabled={currentStats.count === 0}
+                    onClick={() => {
+                      const effT1 =
+                        pendingTimeMs !== null && activeSlot === 1
+                          ? pendingTimeMs
+                          : time1;
+                      const effT2 =
+                        pendingTimeMs !== null && activeSlot === 2
+                          ? pendingTimeMs
+                          : time2;
+                      const effT3 =
+                        pendingTimeMs !== null && activeSlot === 3
+                          ? pendingTimeMs
+                          : time3;
+                      persistRecordToLocalDB(
+                        effT1,
+                        effT2,
+                        effT3,
+                        lastSavedId,
+                        false
+                      );
+                    }}
+                    disabled={currentStats.count === 0 && pendingTimeMs === null}
                     className="w-full min-h-[52px] px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2.5 shadow-sm cursor-pointer whitespace-nowrap"
                   >
                     <Save className="w-5 h-5 shrink-0" />
