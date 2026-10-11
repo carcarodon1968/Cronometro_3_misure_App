@@ -8,7 +8,10 @@ interface VersionManifest {
   commit?: string;
   builtAt?: string;
   apkUrl: string;
+  directApkUrl?: string;
+  githubApkUrl?: string;
   releasesPageUrl?: string;
+  githubReleasesUrl?: string;
 }
 
 const REMOTE_VERSION_URL =
@@ -16,7 +19,9 @@ const REMOTE_VERSION_URL =
 const GITHUB_RELEASES_API =
   'https://api.github.com/repos/carcarodon1968/Cronometro_3_misure_App/releases';
 const DEFAULT_APK_URL =
-  'https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.5/Cronometro_3_misure_v.1.0.5.apk';
+  'https://carcarodon1968.github.io/Cronometro_3_misure_App/Cronometro_3_misure_v.1.0.5.apk';
+const DEFAULT_UPDATE_PAGE_URL =
+  'https://carcarodon1968.github.io/Cronometro_3_misure_App/update.html?v=1.0.5';
 
 function normalizeVersion(v: string): string {
   return String(v || '')
@@ -282,13 +287,16 @@ export const AppUpdateBanner: React.FC = () => {
     return null;
   }
 
-  const apkDownloadUrl = remoteInfo?.apkUrl || localInfo?.apkUrl || DEFAULT_APK_URL;
-  const releasePageUrl =
+  const directBinaryApkUrl =
+    remoteInfo?.directApkUrl ||
+    remoteInfo?.githubApkUrl ||
+    (remoteInfo?.apkUrl && remoteInfo.apkUrl.endsWith('.apk')
+      ? remoteInfo.apkUrl
+      : DEFAULT_APK_URL);
+  const updatePageUrl =
     remoteInfo?.releasesPageUrl ||
-    `https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.${
-      remoteInfo?.version || '1.0.5'
-    }`;
-  const nativeUpdater = getAndroidApkUpdater();
+    remoteInfo?.apkUrl ||
+    DEFAULT_UPDATE_PAGE_URL;
   const isDownloadingNative = apkProgress?.status === 'downloading';
   const isCompletedNative = apkProgress?.status === 'completed';
 
@@ -309,13 +317,13 @@ export const AppUpdateBanner: React.FC = () => {
         totalBytes: 0,
         message: 'Avvio download diretto...',
       });
-      updater.downloadAndInstall(apkDownloadUrl, fileName);
+      updater.downloadAndInstall(directBinaryApkUrl, fileName);
       return;
     }
 
-    // Fallback for older APKs without native bridge: open the HTML Release page
-    // instead of the raw binary URL so Chrome Custom Tabs don't freeze on .pending
-    window.open(releasePageUrl, '_blank', 'noopener,noreferrer');
+    // Fallback: open update.html (which MainActivity also intercepts natively in Java,
+    // and on older APKs opens a real HTML page instead of Chrome's .pending interstitial)
+    window.open(updatePageUrl, '_blank', 'noopener,noreferrer');
   };
 
   const formatMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(2);
@@ -397,42 +405,30 @@ export const AppUpdateBanner: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-2 shrink-0">
-              {nativeUpdater ? (
-                <button
-                  type="button"
-                  onClick={handleStartApkUpdate}
-                  disabled={isDownloadingNative}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-extrabold shadow-sm border border-white/20 transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-orange-400" />
-                  <span>
-                    {isDownloadingNative
-                      ? `Scaricamento ${apkProgress?.percent ?? 0}%...`
-                      : isCompletedNative
-                      ? 'Installa APK Scaricato'
-                      : 'Scarica e Aggiorna APK'}
-                  </span>
-                </button>
-              ) : (
-                <a
-                  href={releasePageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 text-white text-xs font-extrabold shadow-sm border border-white/20 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Scarica e Aggiorna APK</span>
-                </a>
-              )}
+              <button
+                type="button"
+                onClick={handleStartApkUpdate}
+                disabled={isDownloadingNative}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-extrabold shadow-sm border border-white/20 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-orange-400" />
+                <span>
+                  {isDownloadingNative
+                    ? `Scaricamento ${apkProgress?.percent ?? 0}%...`
+                    : isCompletedNative
+                    ? 'Installa APK Scaricato'
+                    : 'Scarica e Aggiorna APK'}
+                </span>
+              </button>
 
               {apkProgress?.status === 'error' && (
                 <a
-                  href={releasePageUrl}
+                  href={updatePageUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold transition-colors"
                 >
-                  <span>Apri Release GitHub</span>
+                  <span>Apri Pagina Aggiornamento</span>
                 </a>
               )}
 

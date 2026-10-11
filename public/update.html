@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Aggiornamento Cronometro 3 misure</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #020617;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background-color: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 20px;
+      padding: 28px 22px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(249, 115, 22, 0.15);
+      color: #fb923c;
+      border: 1px solid rgba(249, 115, 22, 0.4);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 5px 12px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+      letter-spacing: 0.4px;
+    }
+    h1 {
+      font-size: 21px;
+      font-weight: 800;
+      color: #f97316;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 22px;
+    }
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 16px 18px;
+      background: linear-gradient(135deg, #ea580c, #d97706);
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 800;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+      cursor: pointer;
+      margin-bottom: 14px;
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .steps {
+      background-color: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 14px 16px;
+      text-align: left;
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .steps strong {
+      color: #fb923c;
+    }
+    .btn-secondary {
+      display: inline-block;
+      width: 100%;
+      padding: 11px 14px;
+      background-color: #1e293b;
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 1px solid #334155;
+    }
+    .status-msg {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+      font-size: 12px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge" id="ver-badge">AGGIORNAMENTO UFFICIALE APK</div>
+    <h1>Cronometro 3 misure</h1>
+    <p class="subtitle">
+      Installa la nuova versione sopra quella attuale. Tutte le misure salvate nel database restano intatte.
+    </p>
+
+    <a
+      id="direct-apk-link"
+      href="./Cronometro_3_misure_v.1.0.5.apk"
+      download="Cronometro_3_misure_v.1.0.5.apk"
+      class="btn-primary"
+    >
+      <span>⬇ SCARICA E INSTALLA APK</span>
+    </a>
+
+    <div id="status-box" class="status-msg">
+      Download avviato! Se richiesto da Chrome, premi <strong>"Scarica comunque"</strong> e poi <strong>"Apri"</strong>.
+    </div>
+
+    <div class="steps">
+      <div><strong>1.</strong> Tocca il pulsante arancione <strong>Scarica e Installa APK</strong> qui sopra.</div>
+      <div style="margin-top: 6px;"><strong>2.</strong> Quando compare l'avviso in basso o in alto, tocca <strong>"Scarica comunque"</strong> e poi <strong>"Apri"</strong> per avviare l'aggiornamento.</div>
+    </div>
+
+    <a
+      id="release-page-link"
+      href="https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.1.0.5"
+      class="btn-secondary"
+    >
+      Pagina Release GitHub (Alternativa)
+    </a>
+  </div>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var ver = (params.get('v') || '1.0.5').replace(/^v\.?/i, '');
+      var badge = document.getElementById('ver-badge');
+      var directLink = document.getElementById('direct-apk-link');
+      var releaseLink = document.getElementById('release-page-link');
+      var statusBox = document.getElementById('status-box');
+
+      function applyVersion(v, directUrl, releaseUrl) {
+        var cleanV = String(v || '1.0.5').replace(/^v\.?/i, '');
+        var fileName = 'Cronometro_3_misure_v.' + cleanV + '.apk';
+        var resolvedDirect = directUrl || ('./' + fileName);
+        var resolvedRelease =
+          releaseUrl ||
+          ('https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.' + cleanV);
+
+        if (badge) badge.textContent = 'AGGIORNAMENTO v.' + cleanV;
+        if (directLink) {
+          directLink.href = resolvedDirect;
+          directLink.setAttribute('download', fileName);
+          directLink.innerHTML = '<span>⬇ SCARICA E INSTALLA APK v.' + cleanV + '</span>';
+        }
+        if (releaseLink) {
+          releaseLink.href = resolvedRelease;
+        }
+
+        if (
+          window.AndroidApkUpdater &&
+          typeof window.AndroidApkUpdater.downloadAndInstall === 'function'
+        ) {
+          var fullUrl = new URL(resolvedDirect, window.location.href).href;
+          window.AndroidApkUpdater.downloadAndInstall(fullUrl, fileName);
+        }
+      }
+
+      applyVersion(ver);
+
+      fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (data) {
+          if (data && data.version) {
+            applyVersion(data.version, data.directApkUrl, data.githubReleasesUrl || data.releasesPageUrl);
+          }
+        })
+        .catch(function () {});
+
+      if (directLink && statusBox) {
+        directLink.addEventListener('click', function () {
+          statusBox.style.display = 'block';
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

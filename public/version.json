@@ -2,7 +2,10 @@
   "version": "1.0.5",
   "buildNumber": 0,
   "commit": "local",
-  "builtAt": "2026-10-11T09:55:00Z",
-  "apkUrl": "https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.5/Cronometro_3_misure_v.1.0.5.apk",
-  "releasesPageUrl": "https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.1.0.5"
+  "builtAt": "2026-10-11T12:20:00Z",
+  "apkUrl": "https://carcarodon1968.github.io/Cronometro_3_misure_App/update.html?v=1.0.5",
+  "directApkUrl": "https://carcarodon1968.github.io/Cronometro_3_misure_App/Cronometro_3_misure_v.1.0.5.apk",
+  "githubApkUrl": "https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.5/Cronometro_3_misure_v.1.0.5.apk",
+  "releasesPageUrl": "https://carcarodon1968.github.io/Cronometro_3_misure_App/update.html?v=1.0.5",
+  "githubReleasesUrl": "https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.1.0.5"
 }
