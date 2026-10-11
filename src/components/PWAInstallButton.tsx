@@ -68,6 +68,13 @@ function isRunningInAndroidApk(): boolean {
   return false;
 }
 
+function isBrowserApkUpdateLanding(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname || '';
+  const params = new URLSearchParams(window.location.search || '');
+  return /update\.html/i.test(path) || params.has('v') || params.has('b');
+}
+
 interface ApkDownloadProgressDetail {
   status: 'downloading' | 'completed' | 'error';
   percent: number;
@@ -267,6 +274,26 @@ export const AppUpdateBanner: React.FC = () => {
     window.location.reload();
   }, []);
 
+  const isBrowserUpdateLanding = isBrowserApkUpdateLanding();
+  const [browserLandingDismissed, setBrowserLandingDismissed] = useState(false);
+
+  const targetVersion = normalizeVersion(
+    remoteInfo?.version ||
+      (typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('v') || '1.0.5'
+        : '1.0.5')
+  );
+  const directBinaryApkUrl =
+    remoteInfo?.directApkUrl ||
+    `https://carcarodon1968.github.io/Cronometro_3_misure_App/Cronometro_3_misure_v.${targetVersion}.apk`;
+  const githubReleaseApkUrl =
+    remoteInfo?.githubApkUrl ||
+    `https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.${targetVersion}/Cronometro_3_misure_v.${targetVersion}.apk`;
+  const updatePageUrl =
+    remoteInfo?.releasesPageUrl ||
+    remoteInfo?.apkUrl ||
+    DEFAULT_UPDATE_PAGE_URL;
+
   // On the Web App (browser or installed PWA), trigger silent auto-update if a newer build is detected
   useEffect(() => {
     if (!isNativeApk && updateAvailable && remoteInfo) {
@@ -282,21 +309,82 @@ export const AppUpdateBanner: React.FC = () => {
     }
   }, [isNativeApk, updateAvailable, remoteInfo, handleWebAppReload]);
 
+  // If the browser opened update.html?v=... (and an older Service Worker served index.html),
+  // automatically start downloading the .apk file immediately.
+  useEffect(() => {
+    if (!isNativeApk && isBrowserUpdateLanding && typeof window !== 'undefined') {
+      const timer = setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = directBinaryApkUrl;
+        a.setAttribute('download', `Cronometro_3_misure_v.${targetVersion}.apk`);
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [isNativeApk, isBrowserUpdateLanding, directBinaryApkUrl, targetVersion]);
+
+  if (!isNativeApk && isBrowserUpdateLanding && !browserLandingDismissed) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-5 overflow-y-auto">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center shadow-2xl">
+          <div className="inline-block bg-orange-500/15 text-orange-400 border border-orange-500/40 text-xs font-extrabold px-3 py-1 rounded-full mb-3">
+            AGGIORNAMENTO UFFICIALE APK v.{targetVersion}
+          </div>
+          <h1 className="text-xl font-extrabold text-orange-500 mb-2">
+            Cronometro 3 misure
+          </h1>
+          <p className="text-xs text-slate-300 leading-relaxed mb-4">
+            Installa la nuova versione sopra quella attuale. Tutte le misure salvate nel database restano intatte.
+          </p>
+
+          <a
+            href={directBinaryApkUrl}
+            download={`Cronometro_3_misure_v.${targetVersion}.apk`}
+            className="flex items-center justify-center gap-2 w-full py-4 px-4 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-extrabold text-sm shadow-lg border border-white/20 mb-3"
+          >
+            <Download className="w-4 h-4" />
+            <span>⬇ SCARICA E INSTALLA APK v.{targetVersion}</span>
+          </a>
+
+          <div className="rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-semibold p-3 mb-4 text-left leading-relaxed">
+            ⏳ <strong>Download automatico avviato!</strong>
+            <br />
+            Se Chrome mostra un avviso in basso o in alto, tocca{' '}
+            <strong>&quot;Scarica comunque&quot;</strong> e poi{' '}
+            <strong>&quot;Apri&quot;</strong>.
+            <br />
+            <span className="text-amber-300 font-bold">
+              ⚠️ Non chiudere questa pagina finché non si apre la schermata di installazione Android.
+            </span>
+          </div>
+
+          <a
+            href={githubReleaseApkUrl}
+            className="block w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 mb-2"
+          >
+            Scarica da Server Alternativo (GitHub Release)
+          </a>
+
+          <button
+            type="button"
+            onClick={() => setBrowserLandingDismissed(true)}
+            className="text-[11px] text-slate-400 hover:text-slate-200 underline mt-1 cursor-pointer"
+          >
+            Chiudi finestra e vai alla Web App
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Show the Verifica Aggiornamenti button and APK update banner ONLY inside the Android APK
   if (!isNativeApk) {
     return null;
   }
 
-  const directBinaryApkUrl =
-    remoteInfo?.directApkUrl ||
-    remoteInfo?.githubApkUrl ||
-    (remoteInfo?.apkUrl && remoteInfo.apkUrl.endsWith('.apk')
-      ? remoteInfo.apkUrl
-      : DEFAULT_APK_URL);
-  const updatePageUrl =
-    remoteInfo?.releasesPageUrl ||
-    remoteInfo?.apkUrl ||
-    DEFAULT_UPDATE_PAGE_URL;
   const isDownloadingNative = apkProgress?.status === 'downloading';
   const isCompletedNative = apkProgress?.status === 'completed';
 

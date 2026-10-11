@@ -131,21 +131,23 @@
       <span>⬇ SCARICA E INSTALLA APK</span>
     </a>
 
-    <div id="status-box" class="status-msg">
-      Download avviato! Se richiesto da Chrome, premi <strong>"Scarica comunque"</strong> e poi <strong>"Apri"</strong>.
+    <div id="status-box" class="status-msg" style="display: block;">
+      ⏳ <strong>Download automatico avviato!</strong><br />
+      Se Chrome mostra un avviso in basso o in alto, tocca <strong>"Scarica comunque"</strong> e poi <strong>"Apri"</strong>.<br />
+      <span style="color: #fde047;">⚠️ Non chiudere questa pagina finché non si apre la schermata di installazione Android.</span>
     </div>
 
     <div class="steps">
-      <div><strong>1.</strong> Tocca il pulsante arancione <strong>Scarica e Installa APK</strong> qui sopra.</div>
-      <div style="margin-top: 6px;"><strong>2.</strong> Quando compare l'avviso in basso o in alto, tocca <strong>"Scarica comunque"</strong> e poi <strong>"Apri"</strong> per avviare l'aggiornamento.</div>
+      <div><strong>1.</strong> Il download dell'APK parte in automatico (oppure tocca il pulsante arancione qui sopra).</div>
+      <div style="margin-top: 6px;"><strong>2.</strong> Se richiesto dal browser, conferma <strong>"Scarica comunque"</strong> e al termine tocca <strong>"Apri"</strong> per installare l'aggiornamento.</div>
     </div>
 
     <a
       id="release-page-link"
-      href="https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.1.0.5"
+      href="https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.5/Cronometro_3_misure_v.1.0.5.apk"
       class="btn-secondary"
     >
-      Pagina Release GitHub (Alternativa)
+      Scarica da Server Alternativo (GitHub Release)
     </a>
   </div>
 
@@ -157,14 +159,45 @@
       var directLink = document.getElementById('direct-apk-link');
       var releaseLink = document.getElementById('release-page-link');
       var statusBox = document.getElementById('status-box');
+      var autoTriggered = false;
 
-      function applyVersion(v, directUrl, releaseUrl) {
+      function triggerDownload(url, fileName) {
+        if (autoTriggered) return;
+        autoTriggered = true;
+        if (statusBox) {
+          statusBox.style.display = 'block';
+        }
+        if (
+          window.AndroidApkUpdater &&
+          typeof window.AndroidApkUpdater.downloadAndInstall === 'function'
+        ) {
+          var fullNativeUrl = new URL(url, window.location.href).href;
+          window.AndroidApkUpdater.downloadAndInstall(fullNativeUrl, fileName);
+          return;
+        }
+        setTimeout(function () {
+          var a = document.createElement('a');
+          a.href = url;
+          a.setAttribute('download', fileName);
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }, 350);
+      }
+
+      function applyVersion(v, directUrl, releaseApkUrl) {
         var cleanV = String(v || '1.0.5').replace(/^v\.?/i, '');
         var fileName = 'Cronometro_3_misure_v.' + cleanV + '.apk';
-        var resolvedDirect = directUrl || ('./' + fileName);
+        var resolvedDirect =
+          directUrl ||
+          ('https://carcarodon1968.github.io/Cronometro_3_misure_App/' + fileName);
         var resolvedRelease =
-          releaseUrl ||
-          ('https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.' + cleanV);
+          releaseApkUrl ||
+          ('https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.' +
+            cleanV +
+            '/' +
+            fileName);
 
         if (badge) badge.textContent = 'AGGIORNAMENTO v.' + cleanV;
         if (directLink) {
@@ -176,13 +209,7 @@
           releaseLink.href = resolvedRelease;
         }
 
-        if (
-          window.AndroidApkUpdater &&
-          typeof window.AndroidApkUpdater.downloadAndInstall === 'function'
-        ) {
-          var fullUrl = new URL(resolvedDirect, window.location.href).href;
-          window.AndroidApkUpdater.downloadAndInstall(fullUrl, fileName);
-        }
+        triggerDownload(resolvedDirect, fileName);
       }
 
       applyVersion(ver);
@@ -193,7 +220,11 @@
         })
         .then(function (data) {
           if (data && data.version) {
-            applyVersion(data.version, data.directApkUrl, data.githubReleasesUrl || data.releasesPageUrl);
+            applyVersion(
+              data.version,
+              data.directApkUrl,
+              data.githubApkUrl || data.githubReleasesUrl
+            );
           }
         })
         .catch(function () {});

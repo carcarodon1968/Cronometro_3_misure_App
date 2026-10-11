@@ -50,6 +50,8 @@ export default defineConfig(() => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
+          ignoreURLParametersMatching: [/^v$/, /^b$/, /^t$/, /^utm_/, /^fbclid$/],
+          navigateFallbackDenylist: [/update\.html/i, /\.apk$/i, /version\.json/i],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
