@@ -22,6 +22,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  Wrench,
 } from 'lucide-react';
 import {
   MeasurementRecord,
@@ -58,7 +59,7 @@ import { AnalyticsView } from './components/AnalyticsView';
 import { AndroidCodeView } from './components/AndroidCodeView';
 import { useScreenWakeLock } from './hooks/useScreenWakeLock';
 
-type ActiveTab = 'chrono' | 'history' | 'analytics' | 'android_code';
+type ActiveTab = 'chrono' | 'history' | 'analytics' | 'android_code' | 'utility';
 
 export default function App() {
   // Navigation
@@ -752,6 +753,16 @@ export default function App() {
             }`}
           >
             Analisi Medie
+          </button>
+          <button
+            onClick={() => setActiveTab('utility')}
+            className={`py-1 transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === 'utility'
+                ? 'text-orange-500 font-semibold underline underline-offset-8 decoration-2'
+                : 'hover:text-white'
+            }`}
+          >
+            Utility
           </button>
           <button
             onClick={() => setActiveTab('android_code')}
@@ -1610,12 +1621,31 @@ export default function App() {
         )}
 
         {activeTab === 'android_code' && <AndroidCodeView />}
+
+        {activeTab === 'utility' && (
+          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
+                <Wrench className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Utility</h2>
+                <p className="text-xs text-slate-400">
+                  Strumenti e funzioni aggiuntive di supporto
+                </p>
+              </div>
+            </div>
+            <div className="py-8 text-center text-sm text-slate-400">
+              Sezione Utility pronta.
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Mobile Fixed Bottom Navigation Bar (Ergonomic Thumb Zone, <15% viewport height) */}
       <nav
         aria-label="Navigazione principale mobile"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-4 items-center px-2"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-5 items-center px-1"
       >
         <button
           onClick={() => setActiveTab('chrono')}
@@ -1626,7 +1656,7 @@ export default function App() {
           }`}
         >
           <Clock className="w-5 h-5" />
-          <span className="text-[11px] mt-0.5 whitespace-nowrap">Cronometro</span>
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Cronometro</span>
         </button>
 
         <button
@@ -1638,7 +1668,7 @@ export default function App() {
           }`}
         >
           <History className="w-5 h-5" />
-          <span className="text-[11px] mt-0.5 whitespace-nowrap">
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">
             Storico ({sessions.length})
           </span>
         </button>
@@ -1652,7 +1682,19 @@ export default function App() {
           }`}
         >
           <Database className="w-5 h-5" />
-          <span className="text-[11px] mt-0.5 whitespace-nowrap">Analisi</span>
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Analisi</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('utility')}
+          className={`min-h-[48px] flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
+            activeTab === 'utility'
+              ? 'text-orange-400 font-semibold'
+              : 'text-slate-400'
+          }`}
+        >
+          <Wrench className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Utility</span>
         </button>
 
         <button
@@ -1664,7 +1706,7 @@ export default function App() {
           }`}
         >
           <Play className="w-5 h-5" />
-          <span className="text-[11px] mt-0.5 whitespace-nowrap">Kotlin APK</span>
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Kotlin APK</span>
         </button>
       </nav>
 
