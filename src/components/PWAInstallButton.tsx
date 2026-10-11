@@ -63,6 +63,31 @@ function isRunningInAndroidApk(): boolean {
   return false;
 }
 
+interface ApkDownloadProgressDetail {
+  status: 'downloading' | 'completed' | 'error';
+  percent: number;
+  downloadedBytes: number;
+  totalBytes: number;
+  message?: string;
+}
+
+interface AndroidApkUpdaterBridge {
+  isAvailable?: () => boolean;
+  downloadAndInstall?: (apkUrl: string, fileName: string) => void;
+  installPendingApk?: () => void;
+}
+
+function getAndroidApkUpdater(): AndroidApkUpdaterBridge | null {
+  if (typeof window === 'undefined') return null;
+  const bridge = (
+    window as unknown as { AndroidApkUpdater?: AndroidApkUpdaterBridge }
+  ).AndroidApkUpdater;
+  if (bridge && typeof bridge.downloadAndInstall === 'function') {
+    return bridge;
+  }
+  return null;
+}
+
 export const PWAInstallButton: React.FC = () => {
   return null;
 };
@@ -75,7 +100,23 @@ export const AppUpdateBanner: React.FC = () => {
   const [dismissedBuild, setDismissedBuild] = useState<number | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [manualStatus, setManualStatus] = useState<string | null>(null);
+  const [apkProgress, setApkProgress] = useState<ApkDownloadProgressDetail | null>(
+    null
+  );
   const isNativeApk = isRunningInAndroidApk();
+
+  useEffect(() => {
+    const handleApkProgress = (event: Event) => {
+      const customEvent = event as CustomEvent<ApkDownloadProgressDetail>;
+      if (customEvent.detail) {
+        setApkProgress(customEvent.detail);
+      }
+    };
+    window.addEventListener('apk-download-progress', handleApkProgress);
+    return () => {
+      window.removeEventListener('apk-download-progress', handleApkProgress);
+    };
+  }, []);
 
   const checkUpdates = useCallback(async (isManual = false) => {
     if (typeof window === 'undefined' || !navigator.onLine) {
@@ -242,6 +283,43 @@ export const AppUpdateBanner: React.FC = () => {
   }
 
   const apkDownloadUrl = remoteInfo?.apkUrl || localInfo?.apkUrl || DEFAULT_APK_URL;
+  const releasePageUrl =
+    remoteInfo?.releasesPageUrl ||
+    `https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/tag/v.${
+      remoteInfo?.version || '1.0.5'
+    }`;
+  const nativeUpdater = getAndroidApkUpdater();
+  const isDownloadingNative = apkProgress?.status === 'downloading';
+  const isCompletedNative = apkProgress?.status === 'completed';
+
+  const handleStartApkUpdate = () => {
+    const updater = getAndroidApkUpdater();
+    const targetVersion = remoteInfo?.version || '1.0.5';
+    const fileName = `Cronometro_3_misure_v.${targetVersion}.apk`;
+
+    if (updater && typeof updater.downloadAndInstall === 'function') {
+      if (isCompletedNative && typeof updater.installPendingApk === 'function') {
+        updater.installPendingApk();
+        return;
+      }
+      setApkProgress({
+        status: 'downloading',
+        percent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        message: 'Avvio download diretto...',
+      });
+      updater.downloadAndInstall(apkDownloadUrl, fileName);
+      return;
+    }
+
+    // Fallback for older APKs without native bridge: open the HTML Release page
+    // instead of the raw binary URL so Chrome Custom Tabs don't freeze on .pending
+    window.open(releasePageUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const formatMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(2);
+
   const showBanner =
     updateAvailable &&
     remoteInfo !== null &&
@@ -254,7 +332,7 @@ export const AppUpdateBanner: React.FC = () => {
         <button
           type="button"
           onClick={() => checkUpdates(true)}
-          disabled={isChecking}
+          disabled={isChecking || isDownloadingNative}
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-semibold border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
           title="Controlla se è disponibile un nuovo aggiornamento APK su GitHub"
         >
@@ -280,19 +358,83 @@ export const AppUpdateBanner: React.FC = () => {
                 <p className="text-[11px] font-normal text-orange-100 mt-0.5">
                   Scarica e installa il nuovo APK direttamente sopra questa versione senza perdere i dati del database.
                 </p>
+
+                {apkProgress && (
+                  <div className="mt-2 space-y-1 text-left">
+                    <div className="w-full bg-slate-950/40 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-white h-full transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, apkProgress.percent || 0))}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[11px] font-mono-tabular text-white">
+                      {apkProgress.status === 'downloading' && (
+                        <>
+                          Scaricamento diretto in corso: {apkProgress.percent}%
+                          {apkProgress.totalBytes > 0
+                            ? ` (${formatMB(apkProgress.downloadedBytes)} / ${formatMB(
+                                apkProgress.totalBytes
+                              )} MB)`
+                            : ''}
+                        </>
+                      )}
+                      {apkProgress.status === 'completed' && (
+                        <span>
+                          Download completato! Apertura installatore Android...
+                        </span>
+                      )}
+                      {apkProgress.status === 'error' && (
+                        <span className="text-rose-200">
+                          Errore download diretto ({apkProgress.message}). Usa &quot;Apri Release GitHub&quot;.
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <a
-                href={apkDownloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 text-white text-xs font-extrabold shadow-sm border border-white/20 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5 text-orange-400" />
-                <span>Scarica e Aggiorna APK</span>
-              </a>
+            <div className="flex flex-wrap items-center justify-center gap-2 shrink-0">
+              {nativeUpdater ? (
+                <button
+                  type="button"
+                  onClick={handleStartApkUpdate}
+                  disabled={isDownloadingNative}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-extrabold shadow-sm border border-white/20 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-orange-400" />
+                  <span>
+                    {isDownloadingNative
+                      ? `Scaricamento ${apkProgress?.percent ?? 0}%...`
+                      : isCompletedNative
+                      ? 'Installa APK Scaricato'
+                      : 'Scarica e Aggiorna APK'}
+                  </span>
+                </button>
+              ) : (
+                <a
+                  href={releasePageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 text-white text-xs font-extrabold shadow-sm border border-white/20 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Scarica e Aggiorna APK</span>
+                </a>
+              )}
+
+              {apkProgress?.status === 'error' && (
+                <a
+                  href={releasePageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold transition-colors"
+                >
+                  <span>Apri Release GitHub</span>
+                </a>
+              )}
 
               <button
                 type="button"
