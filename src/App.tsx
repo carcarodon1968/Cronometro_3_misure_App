@@ -803,20 +803,20 @@ export default function App() {
       )}
 
       {/* Main Content Container (Scrollable inside adaptive mobile shell) */}
-      <main className="flex-1 min-h-0 overflow-y-auto md:overflow-visible w-full px-2 sm:px-6 py-1.5 sm:py-4 flex flex-col">
+      <main className="flex-1 min-h-0 overflow-y-auto md:overflow-visible w-full px-3 sm:px-6 py-3 sm:py-4">
         {activeTab === 'chrono' && (
-          <div className="flex-1 flex flex-col justify-between gap-2 sm:gap-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* TOP SECTION BEFORE THE STOPWATCH: Categoria (with Flusso), Etichetta Sessione, and mandatory Contenitore */}
             <section
               aria-label="Impostazioni Misurazione"
-              className="shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-2 sm:p-5"
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5"
             >
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-4 items-start">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 items-start">
                 {/* 1. Categoria (Diga Sud, Diga Nord, Flusso) */}
                 <div>
                   <label
                     htmlFor="select-categoria"
-                    className="block text-center text-[10px] sm:text-sm font-bold text-white mb-0.5 sm:mb-1.5 truncate"
+                    className="block text-center text-xs sm:text-sm font-bold text-white mb-1 sm:mb-1.5 truncate"
                   >
                     Categoria
                   </label>
@@ -824,7 +824,7 @@ export default function App() {
                     id="select-categoria"
                     value={sessionCategory}
                     onChange={(e) => setSessionCategory(e.target.value)}
-                    className="w-full h-8 sm:min-h-[44px] px-1 sm:px-3.5 py-0.5 sm:py-2 text-center [text-align-last:center] text-xs sm:text-sm font-bold bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-orange-500 cursor-pointer"
+                    className="w-full min-h-[42px] sm:min-h-[44px] px-1.5 sm:px-3.5 py-1.5 sm:py-2 text-center [text-align-last:center] text-xs sm:text-sm font-bold bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-orange-500 cursor-pointer"
                   >
                     <option value="Diga Sud">Diga Sud</option>
                     <option value="Diga Nord">Diga Nord</option>
@@ -836,7 +836,7 @@ export default function App() {
                 <div>
                   <label
                     htmlFor="input-etichetta-sessione"
-                    className="block text-center text-[10px] sm:text-sm font-bold text-white mb-0.5 sm:mb-1.5 truncate"
+                    className="block text-center text-xs sm:text-sm font-bold text-white mb-1 sm:mb-1.5 truncate"
                   >
                     Nome misura
                   </label>
@@ -846,7 +846,7 @@ export default function App() {
                     value={sessionLabel}
                     onChange={(e) => setSessionLabel(e.target.value)}
                     placeholder={`Misura #${sessions.length + 1}`}
-                    className="w-full h-8 sm:min-h-[44px] px-1.5 sm:px-3.5 py-0.5 sm:py-2 text-center text-xs sm:text-sm font-semibold bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500"
+                    className="w-full min-h-[42px] sm:min-h-[44px] px-2 sm:px-3.5 py-1.5 sm:py-2 text-center text-xs sm:text-sm font-semibold bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500"
                   />
                 </div>
 
@@ -854,7 +854,7 @@ export default function App() {
                 <div>
                   <label
                     htmlFor="input-contenitore"
-                    className="block text-center text-[10px] sm:text-sm font-bold text-white mb-0.5 sm:mb-1.5 truncate"
+                    className="block text-center text-xs sm:text-sm font-bold text-white mb-1 sm:mb-1.5 truncate"
                   >
                     Litri cont. <span className="text-orange-400">*</span>
                   </label>
@@ -871,7 +871,7 @@ export default function App() {
                       }
                     }}
                     placeholder="Litri *"
-                    className={`w-full h-8 sm:min-h-[44px] px-1.5 sm:px-3.5 py-0.5 sm:py-2 text-center text-xs sm:text-sm font-mono-tabular font-semibold bg-slate-950 border rounded-xl text-white placeholder:text-slate-500 focus:outline-none transition-colors ${
+                    className={`w-full min-h-[42px] sm:min-h-[44px] px-2 sm:px-3.5 py-1.5 sm:py-2 text-center text-xs sm:text-sm font-mono-tabular font-semibold bg-slate-950 border rounded-xl text-white placeholder:text-slate-500 focus:outline-none transition-colors ${
                       containerError
                         ? 'border-rose-500 ring-2 ring-rose-500/25'
                         : 'border-slate-700 focus:border-orange-500'
@@ -880,7 +880,7 @@ export default function App() {
                 </div>
               </div>
               {containerError && (
-                <p className="mt-1 text-[11px] sm:text-xs font-medium text-rose-400 flex items-center justify-center gap-1">
+                <p className="mt-2 text-xs font-medium text-rose-400 flex items-center justify-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   <span>Inserisci i Litri contenitore prima di avviare</span>
                 </p>
@@ -888,12 +888,12 @@ export default function App() {
             </section>
 
             {/* Primary Instrument Grid: Left = Stopwatch & Controls | Right = Live Average + Contenitore/Media + Save Button */}
-            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-2 sm:gap-6 justify-between">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
               {/* Left Column (5 cols on desktop): High-Precision Stopwatch & Tactile Android Controls */}
-              <div className="flex-1 lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-2.5 sm:p-6 flex flex-col justify-between">
-                {/* Instrument Top Status Line + Auto-Save Toggle on Mobile */}
-                <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-slate-400 pb-1.5 sm:pb-4 border-b border-slate-800">
-                  <div className="flex items-center gap-1.5 min-w-0">
+              <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col justify-between">
+                {/* Instrument Top Status Line */}
+                <div className="flex items-center justify-between gap-2 text-xs text-slate-400 pb-3 sm:pb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={`w-2 h-2 rounded-full shrink-0 ${
                         isRunning
@@ -905,39 +905,34 @@ export default function App() {
                     />
                     <span className="font-semibold text-slate-200 truncate">
                       {isRunning
-                        ? `Acquisizione ${activeSlot}° Dato`
+                        ? `Acquisizione ${activeSlot}° Dato in corso`
                         : pendingTimeMs !== null
-                        ? `${activeSlot}° Dato fermato`
-                        : `Pronto ${activeSlot}° Dato (${currentStats.count}/3)`}
+                        ? `${activeSlot}° Dato fermato — Convalida o Azzera`
+                        : `Pronto per ${activeSlot}° Dato (su 3)`}
                     </span>
                   </div>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none shrink-0 text-[10px] sm:text-xs text-slate-300">
-                    <span>Auto-salva 3°</span>
-                    <input
-                      type="checkbox"
-                      checked={autoSaveOnThirdStop}
-                      onChange={(e) => setAutoSaveOnThirdStop(e.target.checked)}
-                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 accent-orange-600 rounded cursor-pointer"
-                    />
-                  </label>
+                  <span className="shrink-0">{currentStats.count}/3 registrati</span>
                 </div>
 
                 {/* Main Digital Readout */}
-                <div className="my-auto py-1 sm:py-8 text-center select-none">
-                  <div className="flex items-baseline justify-center font-mono-tabular tracking-tight">
-                    <span className="text-[clamp(2rem,6.5dvh,3.5rem)] sm:text-6xl font-bold text-white leading-none">
+                <div className="py-5 sm:py-8 text-center select-none">
+                  <p className="text-xs font-medium text-slate-400">
+                    Tempo Cronometro (Min : Sec . Centesimi)
+                  </p>
+                  <div className="mt-2 flex items-baseline justify-center font-mono-tabular tracking-tight">
+                    <span className="text-5xl sm:text-6xl font-bold text-white">
                       {formattedLive.minutes}:{formattedLive.seconds}
                     </span>
-                    <span className="text-xl sm:text-4xl font-bold text-orange-400 ml-1 leading-none">
+                    <span className="text-3xl sm:text-4xl font-bold text-orange-400 ml-1">
                       .{formattedLive.centiseconds}
                     </span>
-                    <span className="text-[11px] sm:text-sm font-medium text-slate-500 ml-1">
+                    <span className="text-sm font-medium text-slate-500 ml-1.5">
                       {formattedLive.milliseconds.slice(2)}ms
                     </span>
                   </div>
 
                   {/* Step Indicator Buttons for Slot 1, 2, 3 */}
-                  <div className="mt-1.5 sm:mt-5 grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-2.5 text-[11px] sm:text-xs text-slate-400">
+                  <div className="mt-4 sm:mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 text-xs text-slate-400">
                     {[1, 2, 3].map((slotNum) => {
                       const val = slotNum === 1 ? time1 : slotNum === 2 ? time2 : time3;
                       const isTarget = activeSlot === slotNum;
@@ -950,7 +945,7 @@ export default function App() {
                             pendingTimeMs === null &&
                             setActiveSlot(slotNum as 1 | 2 | 3)
                           }
-                          className={`h-7 sm:min-h-[34px] px-1.5 sm:px-3 py-0.5 sm:py-1 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed font-mono-tabular font-medium truncate ${
+                          className={`min-h-[34px] px-3 py-1 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed font-mono-tabular font-medium ${
                             isTarget
                               ? 'bg-white text-slate-900 font-semibold'
                               : val !== null
@@ -958,178 +953,211 @@ export default function App() {
                               : 'bg-slate-800 text-slate-400'
                           }`}
                         >
-                          {slotNum}°{val !== null ? `: ${formatTimeParts(val).full}` : ' Dato'}
+                          {slotNum}° Dato{val !== null ? `: ${formatTimeParts(val).full}` : ''}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Primary Tactile Controls (Start / Stop / Reset + Convalida e Registra) */}
-                <div className="space-y-2 sm:space-y-3.5 pt-1.5">
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
-                    {!isRunning ? (
-                      <button
-                        onClick={handleStart}
-                        disabled={pendingTimeMs !== null}
-                        className="col-span-2 min-h-[56px] sm:min-h-[68px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.99] disabled:active:scale-100 text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 sm:gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
-                      >
-                        <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current shrink-0" />
-                        <span className="truncate">
-                          {time1 !== null &&
-                          time2 !== null &&
-                          time3 !== null &&
-                          activeSlot === 1 &&
-                          pendingTimeMs === null
-                            ? 'Nuova Terna (1° Dato)'
-                            : `Avvia (${activeSlot}° Dato)`}
-                        </span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleStop}
-                        className="col-span-2 min-h-[56px] sm:min-h-[68px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-950 font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 sm:gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
-                      >
-                        <Square className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-orange-600 shrink-0" />
-                        <span className="truncate">Stop ({activeSlot}° Dato)</span>
-                      </button>
-                    )}
-
+                {/* Primary Tactile Controls (Stacked one below the other and centered, min-h-[58px]) */}
+                <div className="flex flex-col gap-3 pt-2">
+                  {!isRunning ? (
                     <button
-                      onClick={handleReset}
-                      disabled={
-                        isRunning || pendingTimeMs !== null
-                          ? false
-                          : lastSavedId === null ||
-                            (time1 === null && time2 === null && time3 === null)
-                      }
-                      className="col-span-1 min-h-[56px] sm:min-h-[68px] px-3 sm:px-5 py-3 sm:py-4 rounded-2xl border-2 border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-100 font-bold text-sm sm:text-base transition-colors flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer whitespace-nowrap"
+                      onClick={handleStart}
+                      disabled={pendingTimeMs !== null}
+                      className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.99] disabled:active:scale-100 text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer text-center"
                     >
-                      <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                      <span className="truncate">
-                        {isRunning || pendingTimeMs !== null
-                          ? `Azzera ${activeSlot}°`
-                          : 'Azzera'}
+                      <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current shrink-0" />
+                      <span>
+                        {time1 !== null &&
+                        time2 !== null &&
+                        time3 !== null &&
+                        activeSlot === 1 &&
+                        pendingTimeMs === null
+                          ? 'Avvia Nuova Terna (1° Dato)'
+                          : `Avvia (${activeSlot}° Dato)`}
                       </span>
                     </button>
-                  </div>
+                  ) : (
+                    <button
+                      onClick={handleStop}
+                      className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-950 font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer text-center"
+                    >
+                      <Square className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-orange-600 shrink-0" />
+                      <span>Stop ({activeSlot}° Dato)</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleReset}
+                    disabled={
+                      isRunning || pendingTimeMs !== null
+                        ? false
+                        : lastSavedId === null ||
+                          (time1 === null && time2 === null && time3 === null)
+                    }
+                    className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl border-2 border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-100 font-bold text-base sm:text-lg transition-colors flex items-center justify-center gap-2.5 cursor-pointer text-center"
+                  >
+                    <RotateCcw className="w-5 h-5 shrink-0" />
+                    <span>
+                      {isRunning || pendingTimeMs !== null
+                        ? `Azzera ${activeSlot}° Dato`
+                        : 'Azzera Tutto'}
+                    </span>
+                  </button>
 
                   {/* Dedicated Validation & Recording Button */}
                   <button
                     onClick={handleValidateAndRecord}
                     disabled={isRunning || pendingTimeMs === null}
-                    className="w-full min-h-[56px] sm:min-h-[68px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.99] text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 sm:gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
+                    className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.99] text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer text-center"
                   >
                     <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                     <span>Convalida e Registra {activeSlot}° dato</span>
                   </button>
                 </div>
+
+                {/* Auto-Save Toggle */}
+                <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-800 text-xs">
+                  <label className="flex items-center justify-between gap-2 cursor-pointer select-none">
+                    <span className="text-slate-400">
+                      Salva automaticamente nel DB locale al 3° Stop
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={autoSaveOnThirdStop}
+                      onChange={(e) => setAutoSaveOnThirdStop(e.target.checked)}
+                      className="w-4 h-4 accent-orange-600 rounded cursor-pointer"
+                    />
+                  </label>
+                </div>
               </div>
 
-              {/* Right Column (7 cols on desktop): Live Average + Contenitore/Media + Save Button */}
-              <div className="shrink-0 lg:col-span-7 space-y-2 sm:space-y-5">
-                {/* Prominent Live Average & Contenitore ÷ Media Panel */}
-                <div className="bg-slate-900 text-white rounded-2xl p-2.5 sm:p-6 border border-slate-800">
-                  <div className="grid grid-cols-2 gap-2.5 sm:gap-6">
+              {/* Right Column (7 cols on desktop): Enlarged Live Average + Contenitore/Media + Save Button */}
+              <div className="lg:col-span-7 space-y-4 sm:space-y-5">
+                {/* Enlarged Live Average & Contenitore ÷ Media Panel */}
+                <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
                     {/* Left Half: Media dei Tempi Registrati (1, 2 o 3) */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 text-[10px] sm:text-xs text-slate-300">
-                        <span className="truncate">Media tempi</span>
+                    <div>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-300">
+                        <span className="font-semibold">Media dei tempi registrati</span>
                         <span aria-hidden="true">·</span>
-                        <span className="text-orange-400 font-semibold">
-                          {currentStats.count}/3
+                        <span className="text-orange-400 font-bold">
+                          {currentStats.count === 0
+                            ? 'In attesa del 1° Stop'
+                            : `Su ${currentStats.count}/3 ${
+                                currentStats.count === 1 ? 'misura' : 'misure'
+                              }`}
                         </span>
                       </div>
-                      <div className="mt-0.5 sm:mt-2 flex flex-wrap items-baseline gap-1 font-mono-tabular">
-                        <span className="text-lg sm:text-4xl font-bold tracking-tight text-white leading-tight">
+                      <div className="mt-2.5 flex items-baseline gap-2.5 font-mono-tabular">
+                        <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white">
                           {currentStats.currentAverage !== null
                             ? `${formattedAvg.minutes}:${formattedAvg.seconds}.${formattedAvg.centiseconds}`
                             : '--:--.--'}
                         </span>
                         {avgInSeconds !== null && (
-                          <span className="text-[10px] sm:text-sm text-slate-400">
-                            ({avgInSeconds}s)
+                          <span className="text-base sm:text-lg text-slate-400 font-semibold">
+                            ({avgInSeconds} s)
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 sm:mt-2 flex flex-wrap items-center gap-x-1.5 text-[10px] sm:text-xs text-slate-400 font-mono-tabular">
+                      <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs sm:text-sm text-slate-300 font-mono-tabular">
                         <span>Min: {formatTimeParts(currentStats.minTime).full}</span>
                         <span aria-hidden="true">·</span>
                         <span>Max: {formatTimeParts(currentStats.maxTime).full}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          Scarto:{' '}
+                          {currentStats.spread !== null
+                            ? `±${formatTimeParts(currentStats.spread).full}`
+                            : '--'}
+                        </span>
                       </div>
                     </div>
 
                     {/* Right Half: Divisione Contenitore ÷ Media dei Tempi */}
-                    <div className="pl-2.5 sm:pl-6 border-l border-slate-800 flex flex-col justify-between min-w-0">
-                      <div className="flex items-center justify-between gap-1 text-[10px] sm:text-xs text-slate-300">
-                        <span className="font-semibold text-emerald-400 truncate">
-                          Portata (Lt ÷ Media)
+                    <div className="pt-4 border-t border-slate-800 md:pt-0 md:border-t-0 md:pl-6 md:border-l flex flex-col justify-between">
+                      <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-slate-300">
+                        <span className="font-bold text-emerald-400">
+                          Portata (Contenitore ÷ Media)
                         </span>
-                        {parsedContainerAmount !== null && (
-                          <span className="font-mono-tabular text-slate-400 shrink-0">
-                            {parsedContainerAmount}L
-                          </span>
-                        )}
+                        <span className="font-mono-tabular font-semibold text-slate-300">
+                          {parsedContainerAmount !== null
+                            ? `Contenitore: ${parsedContainerAmount} L`
+                            : 'Contenitore non inserito'}
+                        </span>
                       </div>
 
-                      <div className="mt-0.5 sm:mt-2 flex items-baseline gap-1 font-mono-tabular">
-                        <span className="text-lg sm:text-4xl font-bold tracking-tight text-emerald-400 leading-tight">
+                      <div className="mt-2.5 flex flex-wrap items-baseline gap-2 font-mono-tabular">
+                        <span className="text-4xl sm:text-5xl font-bold tracking-tight text-emerald-400">
                           {currentStats.currentFlowPerSec !== null
                             ? formatFlowValue(currentStats.currentFlowPerSec)
                             : '--'}
                         </span>
-                        <span className="text-[11px] sm:text-sm font-semibold text-emerald-300">
+                        <span className="text-base sm:text-lg font-bold text-emerald-300">
                           l/s
                         </span>
                       </div>
 
-                      <div className="mt-0.5 text-[10px] text-slate-400 font-mono-tabular truncate">
-                        {parsedContainerAmount !== null && avgInSeconds !== null
-                          ? `${parsedContainerAmount} ÷ ${avgInSeconds}s`
-                          : 'Litri ÷ Media'}
+                      <div className="mt-2 text-xs sm:text-sm text-slate-300 font-mono-tabular">
+                        {parsedContainerAmount !== null && avgInSeconds !== null ? (
+                          <span>
+                            Calcolo: {parsedContainerAmount} ÷ {avgInSeconds} s ={' '}
+                            <strong className="text-white">
+                              {formatFlowValue(currentStats.currentFlowPerSec)} l/s
+                            </strong>
+                          </span>
+                        ) : (
+                          <span>
+                            Divide i litri del Contenitore per la media di 1, 2 o 3 tempi
+                          </span>
+                        )}
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Calcoli per 60 Secondi, 60 Minuti e 24 Ore in riga orizzontale compatta */}
-                  <div className="mt-1.5 sm:mt-3 pt-1.5 sm:pt-3 border-t border-slate-800 grid grid-cols-3 gap-1.5 text-[10px] sm:text-xs font-mono-tabular text-center">
-                    <div className="bg-slate-950/60 rounded-lg px-1.5 py-1">
-                      <span className="text-slate-400 font-sans mr-1">60s:</span>
-                      <span className="font-semibold text-emerald-300">
-                        {currentStats.currentFlowPerMin !== null
-                          ? `${currentStats.currentFlowPerMin.toFixed(1)}l`
-                          : '--'}
-                      </span>
-                    </div>
-                    <div className="bg-slate-950/60 rounded-lg px-1.5 py-1">
-                      <span className="text-slate-400 font-sans mr-1">60m:</span>
-                      <span className="font-semibold text-emerald-300">
-                        {currentStats.currentFlowPerHour !== null
-                          ? `${currentStats.currentFlowPerHour.toFixed(1)}l`
-                          : '--'}
-                      </span>
-                    </div>
-                    <div className="bg-slate-950/60 rounded-lg px-1.5 py-1">
-                      <span className="text-slate-400 font-sans mr-1">24h:</span>
-                      <span className="font-semibold text-emerald-300">
-                        {currentStats.currentFlowPer24Hours !== null
-                          ? `${currentStats.currentFlowPer24Hours.toFixed(0)}l`
-                          : '--'}
-                      </span>
+                      {/* Calcoli per 60 Secondi, 60 Minuti e 24 Ore ingranditi */}
+                      <div className="mt-4 pt-3.5 border-t border-slate-800 space-y-2 text-sm sm:text-base font-mono-tabular">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-300 font-sans font-medium">60 Secondi:</span>
+                          <span className="font-bold text-emerald-300 text-base sm:text-lg">
+                            {currentStats.currentFlowPerMin !== null
+                              ? `${currentStats.currentFlowPerMin.toFixed(2)} l`
+                              : '--'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-300 font-sans font-medium">60 Minuti:</span>
+                          <span className="font-bold text-emerald-300 text-base sm:text-lg">
+                            {currentStats.currentFlowPerHour !== null
+                              ? `${currentStats.currentFlowPerHour.toFixed(2)} l`
+                              : '--'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-300 font-sans font-medium">24 Ore:</span>
+                          <span className="font-bold text-emerald-300 text-base sm:text-lg">
+                            {currentStats.currentFlowPer24Hours !== null
+                              ? `${currentStats.currentFlowPer24Hours.toFixed(2)} l`
+                              : '--'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* PULSANTE SALVA NEL DB LOCALE */}
-                <div>
+                <div className="pt-1">
                   <button
                     onClick={() =>
                       persistRecordToLocalDB(time1, time2, time3, lastSavedId, false)
                     }
                     disabled={currentStats.count === 0}
-                    className="w-full h-10 sm:min-h-[52px] px-4 sm:px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                    className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-base sm:text-lg font-bold transition-colors flex items-center justify-center gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
                   >
-                    <Save className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <Save className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                     <span>
                       {lastSavedId
                         ? 'Aggiorna Risultati nel DB Locale'
@@ -1139,417 +1167,6 @@ export default function App() {
                 </div>
               </div>
             </div>
-
-            {/* Recent Local Database History Preview Section (Desktop only so Mobile fits 100% on 1 screen) */}
-            <section className="hidden lg:block bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    Storico Recente (Database Locale IndexedDB)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Tutte le sessioni salvate con Categoria, Contenitore, Media Tempi e risultato Contenitore ÷ Media
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {sessions.length === 0 && !isLoadingDB && (
-                    <button
-                      onClick={handleLoadDemoData}
-                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                      <span>Carica dati di esempio</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setActiveTab('history')}
-                    className="min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-semibold text-orange-400 hover:bg-orange-950/30 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                  >
-                    <span>Apri Storico Completo ({sessions.length})</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {isLoadingDB ? (
-                <div className="py-8 text-center text-sm text-slate-400">
-                  Lettura database locale in corso...
-                </div>
-              ) : sessions.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-sm text-slate-400">
-                    Nessuna sessione ancora salvata. Inserisci il valore in <strong>Contenitore</strong>, premi <strong>Avvia</strong> e ferma il cronometro per calcolare media e divisione <code>Contenitore ÷ Media</code>.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {recentYearFolders.map((yearFolder, yearIdx) => {
-                    const yearStateKey = `year:${yearFolder.yearKey}`;
-                    const isYearOpen =
-                      recentOpenFolders[yearStateKey] !== undefined
-                        ? recentOpenFolders[yearStateKey]
-                        : yearIdx === 0;
-
-                    return (
-                      <div
-                        key={yearFolder.yearKey}
-                        className="bg-slate-950/70 border border-slate-700/80 rounded-2xl overflow-hidden"
-                      >
-                        {/* Annual Folder Header */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRecentOpenFolders((prev) => ({
-                              ...prev,
-                              [yearStateKey]: !isYearOpen,
-                            }))
-                          }
-                          className="w-full px-4 py-3.5 bg-slate-800/80 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            {isYearOpen ? (
-                              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                            )}
-                            {isYearOpen ? (
-                              <FolderOpen className="w-5 h-5 text-orange-500 shrink-0" />
-                            ) : (
-                              <Folder className="w-5 h-5 text-orange-500 shrink-0" />
-                            )}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-xs font-bold uppercase tracking-wider text-orange-400">
-                                Cartella Annuale ·
-                              </span>
-                              <span className="text-base font-bold text-white">
-                                {yearFolder.yearTitle}
-                              </span>
-                            </div>
-                          </div>
-
-                          <span className="text-xs font-semibold text-amber-300 whitespace-nowrap">
-                            {yearFolder.monthFolders.length}{' '}
-                            {yearFolder.monthFolders.length === 1 ? 'mese' : 'mesi'} ·{' '}
-                            {yearFolder.items.length}{' '}
-                            {yearFolder.items.length === 1 ? 'misura' : 'misure'}
-                          </span>
-                        </button>
-
-                        {/* Monthly Folders inside Annual Folder */}
-                        {isYearOpen && (
-                          <div className="p-3 space-y-2.5 border-t border-slate-800 bg-slate-950/60">
-                            {yearFolder.monthFolders.map((monthFolder, monthIdx) => {
-                              const monthStateKey = `month:${monthFolder.monthKey}`;
-                              const isMonthOpen =
-                                recentOpenFolders[monthStateKey] !== undefined
-                                  ? recentOpenFolders[monthStateKey]
-                                  : yearIdx === 0 && monthIdx === 0;
-
-                              return (
-                                <div
-                                  key={monthFolder.monthKey}
-                                  className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden"
-                                >
-                                  {/* Monthly Folder Header */}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setRecentOpenFolders((prev) => ({
-                                        ...prev,
-                                        [monthStateKey]: !isMonthOpen,
-                                      }))
-                                    }
-                                    className="w-full px-4 py-3 bg-slate-800/50 hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
-                                  >
-                                    <div className="flex items-center gap-2.5">
-                                      {isMonthOpen ? (
-                                        <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                                      ) : (
-                                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                                      )}
-                                      {isMonthOpen ? (
-                                        <FolderOpen className="w-4 h-4 text-cyan-400 shrink-0" />
-                                      ) : (
-                                        <Folder className="w-4 h-4 text-cyan-400 shrink-0" />
-                                      )}
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                                          Cartella Mensile ·
-                                        </span>
-                                        <span className="text-sm font-bold text-white">
-                                          {monthFolder.monthTitle}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    <span className="text-xs font-semibold text-amber-300 whitespace-nowrap">
-                                      {monthFolder.dayFolders.length}{' '}
-                                      {monthFolder.dayFolders.length === 1 ? 'giorno' : 'giorni'} ·{' '}
-                                      {monthFolder.items.length}{' '}
-                                      {monthFolder.items.length === 1 ? 'misura' : 'misure'}
-                                    </span>
-                                  </button>
-
-                                  {/* Daily Subfolders inside Monthly Folder */}
-                                  {isMonthOpen && (
-                                    <div className="p-2.5 space-y-2 border-t border-slate-800/80 bg-slate-950/50">
-                                      {monthFolder.dayFolders.map((folder, folderIdx) => {
-                                        const dayStateKey = `day:${folder.dayKey}`;
-                                        const isOpen =
-                                          recentOpenFolders[dayStateKey] !== undefined
-                                            ? recentOpenFolders[dayStateKey]
-                                            : yearIdx === 0 &&
-                                              monthIdx === 0 &&
-                                              folderIdx === 0;
-
-                                        return (
-                                          <div
-                                            key={folder.dayKey}
-                                            className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden"
-                                          >
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setRecentOpenFolders((prev) => ({
-                                                  ...prev,
-                                                  [dayStateKey]: !isOpen,
-                                                }))
-                                              }
-                                              className="w-full px-4 py-3 bg-slate-800/60 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
-                                            >
-                                              <div className="flex items-center gap-2.5">
-                                                {isOpen ? (
-                                                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                                                ) : (
-                                                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                                                )}
-                                                {isOpen ? (
-                                                  <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
-                                                ) : (
-                                                  <Folder className="w-4 h-4 text-amber-400 shrink-0" />
-                                                )}
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                  {folder.relativeBadge && (
-                                                    <span className="text-xs font-bold text-orange-400">
-                                                      {folder.relativeBadge} ·
-                                                    </span>
-                                                  )}
-                                                  <span className="text-sm font-bold text-white">
-                                                    {folder.dayTitle}
-                                                  </span>
-                                                </div>
-                                              </div>
-
-                                              <span className="text-xs font-semibold text-amber-300 whitespace-nowrap">
-                                                {folder.items.length}{' '}
-                                                {folder.items.length === 1
-                                                  ? 'misura'
-                                                  : 'misure'}
-                                              </span>
-                                            </button>
-
-                                            {isOpen && (
-                                              <div className="px-4 divide-y divide-slate-800/80 border-t border-slate-800/80">
-                                                {folder.items.map((item) => {
-                                                  const timeStr = new Date(
-                                                    item.createdAt
-                                                  ).toLocaleTimeString('it-IT', {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                  });
-                                                  const itemFlow =
-                                                    item.flowRatePerSec ??
-                                                    computeFlowFromAverage(
-                                                      item.containerAmount,
-                                                      item.finalAverage
-                                                    );
-                                                  const itemFlow60s =
-                                                    item.flowRatePerMin ??
-                                                    (itemFlow !== null
-                                                      ? itemFlow * 60
-                                                      : null);
-                                                  const itemFlow60m =
-                                                    item.flowRatePerHour ??
-                                                    (itemFlow !== null
-                                                      ? itemFlow * 3600
-                                                      : null);
-                                                  const itemFlow24h =
-                                                    item.flowRatePer24Hours ??
-                                                    (itemFlow !== null
-                                                      ? itemFlow * 86400
-                                                      : null);
-
-                                                  return (
-                                                    <div
-                                                      key={item.id}
-                                                      className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                                                    >
-                                                      <div>
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                          <span className="text-sm font-bold text-cyan-400">
-                                                            {item.category}
-                                                          </span>
-                                                          <span
-                                                            aria-hidden="true"
-                                                            className="text-xs font-bold text-cyan-400 leading-none"
-                                                          >
-                                                            •
-                                                          </span>
-                                                          <span className="text-sm font-bold text-cyan-400">
-                                                            {item.label}
-                                                          </span>
-                                                        </div>
-                                                        {/* Clean unboxed metadata with · separators */}
-                                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-300 font-mono-tabular">
-                                                          <span className="font-sans text-amber-300 font-semibold">
-                                                            Ore {timeStr}
-                                                          </span>
-                                                          {item.containerAmount !==
-                                                            null &&
-                                                            item.containerAmount !==
-                                                              undefined && (
-                                                              <>
-                                                                <span aria-hidden="true">
-                                                                  ·
-                                                                </span>
-                                                                <span className="text-slate-200 font-semibold">
-                                                                  Contenitore Lt:{' '}
-                                                                  {item.containerAmount}
-                                                                </span>
-                                                              </>
-                                                            )}
-                                                          <span aria-hidden="true">·</span>
-                                                          <span>
-                                                            1°:{' '}
-                                                            {formatTimeParts(item.time1).full}
-                                                          </span>
-                                                          <span aria-hidden="true">·</span>
-                                                          <span>
-                                                            2°:{' '}
-                                                            {formatTimeParts(item.time2).full}
-                                                          </span>
-                                                          <span aria-hidden="true">·</span>
-                                                          <span>
-                                                            3°:{' '}
-                                                            {formatTimeParts(item.time3).full}
-                                                          </span>
-                                                        </div>
-                                                        {itemFlow !== null && (
-                                                          <div className="mt-2 flex flex-col gap-1 text-xs font-mono-tabular text-slate-300">
-                                                            <div>
-                                                              <span className="text-slate-400 font-sans">
-                                                                60 Secondi:
-                                                              </span>{' '}
-                                                              <strong className="text-emerald-400">
-                                                                {itemFlow60s !== null
-                                                                  ? `${itemFlow60s.toFixed(2)} l`
-                                                                  : '--'}
-                                                              </strong>
-                                                            </div>
-                                                            <div>
-                                                              <span className="text-slate-400 font-sans">
-                                                                60 Minuti:
-                                                              </span>{' '}
-                                                              <strong className="text-emerald-400">
-                                                                {itemFlow60m !== null
-                                                                  ? `${itemFlow60m.toFixed(2)} l`
-                                                                  : '--'}
-                                                              </strong>
-                                                            </div>
-                                                            <div>
-                                                              <span className="text-slate-400 font-sans">
-                                                                24 Ore:
-                                                              </span>{' '}
-                                                              <strong className="text-emerald-400">
-                                                                {itemFlow24h !== null
-                                                                  ? `${itemFlow24h.toFixed(2)} l`
-                                                                  : '--'}
-                                                              </strong>
-                                                            </div>
-                                                          </div>
-                                                        )}
-                                                      </div>
-
-                                                      <div className="flex items-center justify-between sm:justify-end gap-5">
-                                                        {itemFlow !== null && (
-                                                          <div className="text-left sm:text-right">
-                                                            <span className="text-[11px] text-slate-400 block">
-                                                              Contenitore ÷ Media
-                                                            </span>
-                                                            <span className="text-lg font-bold font-mono-tabular text-emerald-400">
-                                                              {formatFlowValue(itemFlow)}{' '}
-                                                              l/s
-                                                            </span>
-                                                          </div>
-                                                        )}
-
-                                                        <div className="text-center">
-                                                          <span className="text-[11px] text-slate-400 block">
-                                                            Media tempi
-                                                          </span>
-                                                          <span className="text-lg font-bold font-mono-tabular text-orange-400">
-                                                            {
-                                                              formatTimeParts(
-                                                                item.finalAverage
-                                                              ).fullMs
-                                                            }
-                                                          </span>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-1">
-                                                          <button
-                                                            onClick={() =>
-                                                              handleLoadSessionIntoChrono(
-                                                                item
-                                                              )
-                                                            }
-                                                            title="Ricarica nei 3 campi"
-                                                            className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer"
-                                                          >
-                                                            <RotateCcw className="w-4 h-4" />
-                                                          </button>
-                                                          <button
-                                                            onClick={async () => {
-                                                              const updated =
-                                                                await deleteSessionFromDB(
-                                                                  item.id
-                                                                );
-                                                              setSessions(updated);
-                                                              if (cloudUser) {
-                                                                deleteSessionFromCloud(
-                                                                  item.id
-                                                                ).catch(() => {});
-                                                              }
-                                                            }}
-                                                            title="Elimina"
-                                                            className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 flex items-center justify-center cursor-pointer"
-                                                          >
-                                                            <Trash2 className="w-4 h-4" />
-                                                          </button>
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
           </div>
         )}
 
