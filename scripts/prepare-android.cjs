@@ -98,6 +98,36 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        try {
+            final android.view.View contentView = findViewById(android.R.id.content);
+            if (contentView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                contentView.setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {
+                    @Override
+                    public android.view.WindowInsets onApplyWindowInsets(android.view.View v, android.view.WindowInsets insets) {
+                        int top = 0;
+                        int bottom = 0;
+                        int left = 0;
+                        int right = 0;
+                        if (Build.VERSION.SDK_INT >= 30) {
+                            android.graphics.Insets sysBars = insets.getInsets(
+                                android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout()
+                            );
+                            top = sysBars.top;
+                            bottom = sysBars.bottom;
+                            left = sysBars.left;
+                            right = sysBars.right;
+                        } else {
+                            top = insets.getSystemWindowInsetTop();
+                            bottom = insets.getSystemWindowInsetBottom();
+                            left = insets.getSystemWindowInsetLeft();
+                            right = insets.getSystemWindowInsetRight();
+                        }
+                        v.setPadding(left, top, right, bottom);
+                        return insets;
+                    }
+                });
+            }
+        } catch (Exception ignored) {}
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebView webView = getBridge().getWebView();
             webView.addJavascriptInterface(new ApkUpdaterBridge(), "AndroidApkUpdater");
