@@ -244,23 +244,6 @@ export default function App() {
     };
   }, []);
 
-  // Track exact visible smartphone viewport height (handles mobile browser bars & WebView insets)
-  useEffect(() => {
-    const updateAppHeight = () => {
-      const vh = window.visualViewport?.height || window.innerHeight;
-      document.documentElement.style.setProperty('--app-height', `${vh}px`);
-    };
-    updateAppHeight();
-    window.addEventListener('resize', updateAppHeight);
-    window.visualViewport?.addEventListener('resize', updateAppHeight);
-    window.visualViewport?.addEventListener('scroll', updateAppHeight);
-    return () => {
-      window.removeEventListener('resize', updateAppHeight);
-      window.visualViewport?.removeEventListener('resize', updateAppHeight);
-      window.visualViewport?.removeEventListener('scroll', updateAppHeight);
-    };
-  }, []);
-
   // Parsed container quantity & derived statistics (works for 1, 2, or 3 recorded times)
   const parsedContainerAmount = parseContainerAmount(containerInput);
   const currentStats = computeStatsFromTimes(time1, time2, time3, parsedContainerAmount);
@@ -720,19 +703,19 @@ export default function App() {
   ];
 
   return (
-    <div className="h-[var(--app-height,100dvh)] max-h-[var(--app-height,100dvh)] md:h-auto md:max-h-none md:min-h-screen w-full overflow-hidden md:overflow-visible flex flex-col bg-slate-950 text-slate-100 md:pb-10">
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 pb-20 md:pb-10">
       {/* Top Bar: Centered App Title in Orange + Desktop Nav */}
-      <header className="shrink-0 md:sticky md:top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-8 py-1.5 sm:py-3 flex flex-col items-center justify-center gap-1 sm:gap-2">
+      <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-8 py-3 flex flex-col items-center justify-center gap-2">
         <a
           href="#top"
           onClick={(e) => {
             e.preventDefault();
             setActiveTab('chrono');
           }}
-          className="text-base sm:text-xl font-bold tracking-tight text-orange-500 font-display text-center whitespace-nowrap flex items-baseline justify-center gap-2"
+          className="text-xl font-bold tracking-tight text-orange-500 font-display text-center whitespace-nowrap flex items-baseline justify-center gap-2"
         >
           <span>Cronometro 3 misure</span>
-          <span className="text-[11px] sm:text-xs font-mono-tabular font-semibold text-orange-400/90">
+          <span className="text-xs font-mono-tabular font-semibold text-orange-400/90">
             v.1.0.5
           </span>
         </a>
@@ -796,27 +779,27 @@ export default function App() {
 
       {/* Non-intrusive Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-14 right-3 z-50 max-w-sm bg-slate-800 text-white px-3.5 py-2.5 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2 border border-slate-700">
+        <div className="fixed top-16 right-4 z-50 max-w-sm bg-slate-800 text-white px-4 py-3 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2.5 border border-slate-700">
           <CheckCircle2 className="w-4 h-4 text-orange-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Main Content Container (Scrollable inside adaptive mobile shell) */}
-      <main className="flex-1 min-h-0 overflow-y-auto md:overflow-visible w-full px-3 sm:px-6 py-3 sm:py-4">
+      {/* Main Content Container (Full screen width) */}
+      <main className="flex-1 w-full px-3 sm:px-6 pt-4">
         {activeTab === 'chrono' && (
-          <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-6">
             {/* TOP SECTION BEFORE THE STOPWATCH: Categoria (with Flusso), Etichetta Sessione, and mandatory Contenitore */}
             <section
               aria-label="Impostazioni Misurazione"
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5"
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
             >
-              <div className="grid grid-cols-3 gap-2 sm:gap-4 items-start">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                 {/* 1. Categoria (Diga Sud, Diga Nord, Flusso) */}
                 <div>
                   <label
                     htmlFor="select-categoria"
-                    className="block text-center text-xs sm:text-sm font-bold text-white mb-1 sm:mb-1.5 truncate"
+                    className="block text-center text-sm font-bold text-white mb-1.5"
                   >
                     Categoria
                   </label>
@@ -824,7 +807,7 @@ export default function App() {
                     id="select-categoria"
                     value={sessionCategory}
                     onChange={(e) => setSessionCategory(e.target.value)}
-                    className="w-full min-h-[42px] sm:min-h-[44px] px-1.5 sm:px-3.5 py-1.5 sm:py-2 text-center [text-align-last:center] text-xs sm:text-sm font-bold bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-orange-500 cursor-pointer"
+                    className="w-full min-h-[44px] px-3.5 py-2 text-center [text-align-last:center] text-sm font-bold bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-orange-500 cursor-pointer"
                   >
                     <option value="Diga Sud">Diga Sud</option>
                     <option value="Diga Nord">Diga Nord</option>
@@ -836,7 +819,7 @@ export default function App() {
                 <div>
                   <label
                     htmlFor="input-etichetta-sessione"
-                    className="block text-center text-xs sm:text-sm font-bold text-white mb-1 sm:mb-1.5 truncate"
+                    className="block text-center text-sm font-bold text-white mb-1.5"
                   >
                     Nome misura
                   </label>
@@ -845,8 +828,8 @@ export default function App() {
                     type="text"
                     value={sessionLabel}
                     onChange={(e) => setSessionLabel(e.target.value)}
-                    placeholder={`Misura #${sessions.length + 1}`}
-                    className="w-full min-h-[42px] sm:min-h-[44px] px-2 sm:px-3.5 py-1.5 sm:py-2 text-center text-xs sm:text-sm font-semibold bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500"
+                    placeholder={`es. Misurazione #${sessions.length + 1}`}
+                    className="w-full min-h-[44px] px-3.5 py-2 text-center text-sm font-semibold bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500"
                   />
                 </div>
 
@@ -854,9 +837,9 @@ export default function App() {
                 <div>
                   <label
                     htmlFor="input-contenitore"
-                    className="block text-center text-xs sm:text-sm font-bold text-white mb-1 sm:mb-1.5 truncate"
+                    className="block text-center text-sm font-bold text-white mb-1.5"
                   >
-                    Litri cont. <span className="text-orange-400">*</span>
+                    Litri contenitore <span className="text-orange-400">*</span>
                   </label>
                   <input
                     ref={containerInputRef}
@@ -870,32 +853,32 @@ export default function App() {
                         setContainerError(false);
                       }
                     }}
-                    placeholder="Litri *"
-                    className={`w-full min-h-[42px] sm:min-h-[44px] px-2 sm:px-3.5 py-1.5 sm:py-2 text-center text-xs sm:text-sm font-mono-tabular font-semibold bg-slate-950 border rounded-xl text-white placeholder:text-slate-500 focus:outline-none transition-colors ${
+                    placeholder="Inserisci litri (obbligatorio)"
+                    className={`w-full min-h-[44px] px-3.5 py-2 text-center text-sm font-mono-tabular font-semibold bg-slate-950 border rounded-xl text-white placeholder:text-slate-500 focus:outline-none transition-colors ${
                       containerError
                         ? 'border-rose-500 ring-2 ring-rose-500/25'
                         : 'border-slate-700 focus:border-orange-500'
                     }`}
                   />
+                  {containerError && (
+                    <p className="mt-1.5 text-xs font-medium text-rose-400 flex items-center justify-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Inserisci i Litri contenitore prima di avviare</span>
+                    </p>
+                  )}
                 </div>
               </div>
-              {containerError && (
-                <p className="mt-2 text-xs font-medium text-rose-400 flex items-center justify-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>Inserisci i Litri contenitore prima di avviare</span>
-                </p>
-              )}
             </section>
 
-            {/* Primary Instrument Grid: Left = Stopwatch & Controls | Right = Live Average + Contenitore/Media + Save Button */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+            {/* Primary Instrument Grid: Left = Stopwatch & Controls | Right = Live Average + Contenitore/Media + 3 Fields + Save Button at the end */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column (5 cols on desktop): High-Precision Stopwatch & Tactile Android Controls */}
-              <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col justify-between">
+              <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
                 {/* Instrument Top Status Line */}
-                <div className="flex items-center justify-between gap-2 text-xs text-slate-400 pb-3 sm:pb-4 border-b border-slate-800">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center justify-between text-xs text-slate-400 pb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
                     <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
+                      className={`w-2 h-2 rounded-full ${
                         isRunning
                           ? 'bg-orange-500 animate-ping'
                           : currentStats.count === 3
@@ -903,7 +886,7 @@ export default function App() {
                           : 'bg-slate-500'
                       }`}
                     />
-                    <span className="font-semibold text-slate-200 truncate">
+                    <span className="font-semibold text-slate-200">
                       {isRunning
                         ? `Acquisizione ${activeSlot}° Dato in corso`
                         : pendingTimeMs !== null
@@ -911,11 +894,11 @@ export default function App() {
                         : `Pronto per ${activeSlot}° Dato (su 3)`}
                     </span>
                   </div>
-                  <span className="shrink-0">{currentStats.count}/3 registrati</span>
+                  <span>{currentStats.count}/3 registrati</span>
                 </div>
 
                 {/* Main Digital Readout */}
-                <div className="py-5 sm:py-8 text-center select-none">
+                <div className="py-8 text-center select-none">
                   <p className="text-xs font-medium text-slate-400">
                     Tempo Cronometro (Min : Sec . Centesimi)
                   </p>
@@ -932,7 +915,7 @@ export default function App() {
                   </div>
 
                   {/* Step Indicator Buttons for Slot 1, 2, 3 */}
-                  <div className="mt-4 sm:mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 text-xs text-slate-400">
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5 text-xs text-slate-400">
                     {[1, 2, 3].map((slotNum) => {
                       const val = slotNum === 1 ? time1 : slotNum === 2 ? time2 : time3;
                       const isTarget = activeSlot === slotNum;
@@ -960,66 +943,68 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Primary Tactile Controls (Stacked one below the other and centered, min-h-[58px]) */}
-                <div className="flex flex-col gap-3 pt-2">
-                  {!isRunning ? (
+                {/* Primary Tactile Controls (Start / Stop / Reset + Convalida e Registra) */}
+                <div className="space-y-3 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {!isRunning ? (
+                      <button
+                        onClick={handleStart}
+                        disabled={pendingTimeMs !== null}
+                        className="sm:col-span-2 min-h-[54px] px-6 py-3.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.99] disabled:active:scale-100 text-white font-semibold text-base transition-all flex items-center justify-center gap-2.5 shadow-sm cursor-pointer whitespace-nowrap"
+                      >
+                        <Play className="w-5 h-5 fill-current shrink-0" />
+                        <span>
+                          {time1 !== null &&
+                          time2 !== null &&
+                          time3 !== null &&
+                          activeSlot === 1 &&
+                          pendingTimeMs === null
+                            ? 'Avvia Nuova Terna (1° Dato)'
+                            : `Avvia (${activeSlot}° Dato)`}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleStop}
+                        className="sm:col-span-2 min-h-[54px] px-6 py-3.5 rounded-xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-950 font-semibold text-base transition-all flex items-center justify-center gap-2.5 shadow-sm cursor-pointer whitespace-nowrap"
+                      >
+                        <Square className="w-5 h-5 fill-current text-orange-600 shrink-0" />
+                        <span>Stop ({activeSlot}° Dato)</span>
+                      </button>
+                    )}
+
                     <button
-                      onClick={handleStart}
-                      disabled={pendingTimeMs !== null}
-                      className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.99] disabled:active:scale-100 text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer text-center"
+                      onClick={handleReset}
+                      disabled={
+                        isRunning || pendingTimeMs !== null
+                          ? false
+                          : lastSavedId === null ||
+                            (time1 === null && time2 === null && time3 === null)
+                      }
+                      className="min-h-[54px] px-4 py-3.5 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                     >
-                      <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current shrink-0" />
+                      <RotateCcw className="w-4 h-4 shrink-0" />
                       <span>
-                        {time1 !== null &&
-                        time2 !== null &&
-                        time3 !== null &&
-                        activeSlot === 1 &&
-                        pendingTimeMs === null
-                          ? 'Avvia Nuova Terna (1° Dato)'
-                          : `Avvia (${activeSlot}° Dato)`}
+                        {isRunning || pendingTimeMs !== null
+                          ? `Azzera ${activeSlot}°`
+                          : 'Azzera Tutto'}
                       </span>
                     </button>
-                  ) : (
-                    <button
-                      onClick={handleStop}
-                      className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-950 font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer text-center"
-                    >
-                      <Square className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-orange-600 shrink-0" />
-                      <span>Stop ({activeSlot}° Dato)</span>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={handleReset}
-                    disabled={
-                      isRunning || pendingTimeMs !== null
-                        ? false
-                        : lastSavedId === null ||
-                          (time1 === null && time2 === null && time3 === null)
-                    }
-                    className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl border-2 border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-100 font-bold text-base sm:text-lg transition-colors flex items-center justify-center gap-2.5 cursor-pointer text-center"
-                  >
-                    <RotateCcw className="w-5 h-5 shrink-0" />
-                    <span>
-                      {isRunning || pendingTimeMs !== null
-                        ? `Azzera ${activeSlot}° Dato`
-                        : 'Azzera Tutto'}
-                    </span>
-                  </button>
+                  </div>
 
                   {/* Dedicated Validation & Recording Button */}
                   <button
                     onClick={handleValidateAndRecord}
                     disabled={isRunning || pendingTimeMs === null}
-                    className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.99] text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer text-center"
+                    className="w-full min-h-[54px] px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.99] text-white font-semibold text-base transition-all flex items-center justify-center gap-2.5 shadow-sm cursor-pointer whitespace-nowrap"
                   >
-                    <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 shrink-0" />
                     <span>Convalida e Registra {activeSlot}° dato</span>
                   </button>
                 </div>
 
                 {/* Auto-Save Toggle */}
-                <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-800 text-xs">
+                <div className="mt-6 pt-4 border-t border-slate-800 text-xs">
                   <label className="flex items-center justify-between gap-2 cursor-pointer select-none">
                     <span className="text-slate-400">
                       Salva automaticamente nel DB locale al 3° Stop
@@ -1034,17 +1019,17 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right Column (7 cols on desktop): Enlarged Live Average + Contenitore/Media + Save Button */}
-              <div className="lg:col-span-7 space-y-4 sm:space-y-5">
-                {/* Enlarged Live Average & Contenitore ÷ Media Panel */}
-                <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+              {/* Right Column (7 cols on desktop): Live Average + Contenitore/Media + 3 Fields + Save Button */}
+              <div className="lg:col-span-7 space-y-5">
+                {/* Prominent Live Average & Contenitore ÷ Media Panel */}
+                <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left Half: Media dei Tempi Registrati (1, 2 o 3) */}
                     <div>
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-300">
-                        <span className="font-semibold">Media dei tempi registrati</span>
+                      <div className="flex items-center gap-2 text-xs text-slate-300">
+                        <span>Media dei tempi registrati</span>
                         <span aria-hidden="true">·</span>
-                        <span className="text-orange-400 font-bold">
+                        <span className="text-orange-400 font-semibold">
                           {currentStats.count === 0
                             ? 'In attesa del 1° Stop'
                             : `Su ${currentStats.count}/3 ${
@@ -1052,19 +1037,19 @@ export default function App() {
                               }`}
                         </span>
                       </div>
-                      <div className="mt-2.5 flex items-baseline gap-2.5 font-mono-tabular">
-                        <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white">
+                      <div className="mt-2 flex items-baseline gap-2 font-mono-tabular">
+                        <span className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
                           {currentStats.currentAverage !== null
                             ? `${formattedAvg.minutes}:${formattedAvg.seconds}.${formattedAvg.centiseconds}`
                             : '--:--.--'}
                         </span>
                         {avgInSeconds !== null && (
-                          <span className="text-base sm:text-lg text-slate-400 font-semibold">
+                          <span className="text-sm text-slate-400">
                             ({avgInSeconds} s)
                           </span>
                         )}
                       </div>
-                      <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs sm:text-sm text-slate-300 font-mono-tabular">
+                      <div className="mt-2 flex items-center gap-3 text-xs text-slate-400 font-mono-tabular">
                         <span>Min: {formatTimeParts(currentStats.minTime).full}</span>
                         <span aria-hidden="true">·</span>
                         <span>Max: {formatTimeParts(currentStats.maxTime).full}</span>
@@ -1079,30 +1064,30 @@ export default function App() {
                     </div>
 
                     {/* Right Half: Divisione Contenitore ÷ Media dei Tempi */}
-                    <div className="pt-4 border-t border-slate-800 md:pt-0 md:border-t-0 md:pl-6 md:border-l flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-slate-300">
-                        <span className="font-bold text-emerald-400">
-                          Portata (Contenitore ÷ Media)
+                    <div className="md:pl-6 md:border-l border-slate-800 flex flex-col justify-between">
+                      <div className="flex items-center justify-between gap-2 text-xs text-slate-300">
+                        <span className="font-semibold text-emerald-400">
+                          Contenitore ÷ Media Tempi
                         </span>
-                        <span className="font-mono-tabular font-semibold text-slate-300">
+                        <span className="font-mono-tabular text-slate-400">
                           {parsedContainerAmount !== null
-                            ? `Contenitore: ${parsedContainerAmount} L`
+                            ? `Contenitore: ${parsedContainerAmount}`
                             : 'Contenitore non inserito'}
                         </span>
                       </div>
 
-                      <div className="mt-2.5 flex flex-wrap items-baseline gap-2 font-mono-tabular">
-                        <span className="text-4xl sm:text-5xl font-bold tracking-tight text-emerald-400">
+                      <div className="mt-2 flex flex-wrap items-baseline gap-2 font-mono-tabular">
+                        <span className="text-3xl sm:text-4xl font-bold tracking-tight text-emerald-400">
                           {currentStats.currentFlowPerSec !== null
                             ? formatFlowValue(currentStats.currentFlowPerSec)
                             : '--'}
                         </span>
-                        <span className="text-base sm:text-lg font-bold text-emerald-300">
+                        <span className="text-sm font-semibold text-emerald-300">
                           l/s
                         </span>
                       </div>
 
-                      <div className="mt-2 text-xs sm:text-sm text-slate-300 font-mono-tabular">
+                      <div className="mt-2 text-xs text-slate-400 font-mono-tabular">
                         {parsedContainerAmount !== null && avgInSeconds !== null ? (
                           <span>
                             Calcolo: {parsedContainerAmount} ÷ {avgInSeconds} s ={' '}
@@ -1112,32 +1097,32 @@ export default function App() {
                           </span>
                         ) : (
                           <span>
-                            Divide i litri del Contenitore per la media di 1, 2 o 3 tempi
+                            Divide il quantitativo Contenitore per la media di 1, 2 o 3 tempi
                           </span>
                         )}
                       </div>
 
-                      {/* Calcoli per 60 Secondi, 60 Minuti e 24 Ore ingranditi */}
-                      <div className="mt-4 pt-3.5 border-t border-slate-800 space-y-2 text-sm sm:text-base font-mono-tabular">
+                      {/* Calcoli per 60 Secondi, 60 Minuti e 24 Ore */}
+                      <div className="mt-3 pt-3 border-t border-slate-800 space-y-1.5 text-xs font-mono-tabular">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-slate-300 font-sans font-medium">60 Secondi:</span>
-                          <span className="font-bold text-emerald-300 text-base sm:text-lg">
+                          <span className="text-slate-400 font-sans">60 Secondi:</span>
+                          <span className="font-semibold text-emerald-300">
                             {currentStats.currentFlowPerMin !== null
                               ? `${currentStats.currentFlowPerMin.toFixed(2)} l`
                               : '--'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-slate-300 font-sans font-medium">60 Minuti:</span>
-                          <span className="font-bold text-emerald-300 text-base sm:text-lg">
+                          <span className="text-slate-400 font-sans">60 Minuti:</span>
+                          <span className="font-semibold text-emerald-300">
                             {currentStats.currentFlowPerHour !== null
                               ? `${currentStats.currentFlowPerHour.toFixed(2)} l`
                               : '--'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-slate-300 font-sans font-medium">24 Ore:</span>
-                          <span className="font-bold text-emerald-300 text-base sm:text-lg">
+                          <span className="text-slate-400 font-sans">24 Ore:</span>
+                          <span className="font-semibold text-emerald-300">
                             {currentStats.currentFlowPer24Hours !== null
                               ? `${currentStats.currentFlowPer24Hours.toFixed(2)} l`
                               : '--'}
@@ -1155,9 +1140,9 @@ export default function App() {
                       persistRecordToLocalDB(time1, time2, time3, lastSavedId, false)
                     }
                     disabled={currentStats.count === 0}
-                    className="w-full min-h-[58px] px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-base sm:text-lg font-bold transition-colors flex items-center justify-center gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
+                    className="w-full min-h-[52px] px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2.5 shadow-sm cursor-pointer whitespace-nowrap"
                   >
-                    <Save className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+                    <Save className="w-5 h-5 shrink-0" />
                     <span>
                       {lastSavedId
                         ? 'Aggiorna Risultati nel DB Locale'
@@ -1246,79 +1231,71 @@ export default function App() {
         )}
       </main>
 
-      {/* Mobile Adaptive Bottom Navigation Bar (Always visible inside --app-height flex shell) */}
+      {/* Mobile Fixed Bottom Navigation Bar (Ergonomic Thumb Zone, <15% viewport height) */}
       <nav
         aria-label="Navigazione principale mobile"
-        className="md:hidden shrink-0 w-full bg-slate-900/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-5 items-center px-0.5 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] min-h-[54px] z-40"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-5 items-center px-1"
       >
         <button
           onClick={() => setActiveTab('chrono')}
-          className={`min-h-[44px] min-w-0 px-0.5 flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[48px] flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
             activeTab === 'chrono'
               ? 'text-orange-400 font-semibold'
               : 'text-slate-400'
           }`}
         >
-          <Clock className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-          <span className="text-[10px] sm:text-[11px] mt-0.5 leading-tight truncate max-w-full">
-            Cronometro
-          </span>
+          <Clock className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Cronometro</span>
         </button>
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`min-h-[44px] min-w-0 px-0.5 flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[48px] flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
             activeTab === 'history'
               ? 'text-orange-400 font-semibold'
               : 'text-slate-400'
           }`}
         >
-          <History className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-          <span className="text-[10px] sm:text-[11px] mt-0.5 leading-tight truncate max-w-full">
+          <History className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">
             Storico ({sessions.length})
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`min-h-[44px] min-w-0 px-0.5 flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[48px] flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
             activeTab === 'analytics'
               ? 'text-orange-400 font-semibold'
               : 'text-slate-400'
           }`}
         >
-          <Database className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-          <span className="text-[10px] sm:text-[11px] mt-0.5 leading-tight truncate max-w-full">
-            Analisi
-          </span>
+          <Database className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Analisi</span>
         </button>
 
         <button
           onClick={() => setActiveTab('utility')}
-          className={`min-h-[44px] min-w-0 px-0.5 flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[48px] flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
             activeTab === 'utility'
               ? 'text-orange-400 font-semibold'
               : 'text-slate-400'
           }`}
         >
-          <Wrench className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-          <span className="text-[10px] sm:text-[11px] mt-0.5 leading-tight truncate max-w-full">
-            Utility
-          </span>
+          <Wrench className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Utility</span>
         </button>
 
         <button
           onClick={() => setActiveTab('android_code')}
-          className={`min-h-[44px] min-w-0 px-0.5 flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[48px] flex flex-col items-center justify-center rounded-xl transition-colors cursor-pointer ${
             activeTab === 'android_code'
               ? 'text-orange-400 font-semibold'
               : 'text-slate-400'
           }`}
         >
-          <Play className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-          <span className="text-[10px] sm:text-[11px] mt-0.5 leading-tight truncate max-w-full">
-            Kotlin APK
-          </span>
+          <Play className="w-5 h-5" />
+          <span className="text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap">Kotlin APK</span>
         </button>
       </nav>
 
