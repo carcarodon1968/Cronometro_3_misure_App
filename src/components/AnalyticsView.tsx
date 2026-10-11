@@ -33,66 +33,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     return sessions.filter((s) => s.category === selectedCategory);
   }, [sessions, selectedCategory]);
 
-  const summary = useMemo(() => {
-    if (filteredSessions.length === 0) return null;
-
-    const averages = filteredSessions.map((s) => s.finalAverage);
-    const globalMean = Math.round(
-      averages.reduce((acc, v) => acc + v, 0) / averages.length
-    );
-    const bestSession = filteredSessions.reduce((best, cur) =>
-      cur.finalAverage < best.finalAverage ? cur : best
-    );
-    const mostConsistentSession = filteredSessions.reduce((best, cur) =>
-      cur.spread < best.spread ? cur : best
-    );
-
-    const flowValues = filteredSessions
-      .map(
-        (s) =>
-          s.flowRatePerSec ?? computeFlowFromAverage(s.containerAmount, s.finalAverage)
-      )
-      .filter((v): v is number => v !== null && !Number.isNaN(v));
-
-    const meanFlowPerSec =
-      flowValues.length > 0
-        ? flowValues.reduce((a, b) => a + b, 0) / flowValues.length
-        : null;
-
-    // Slot-by-slot mean comparison (1° dato vs 2° dato vs 3° dato)
-    const t1List = filteredSessions
-      .map((s) => s.time1)
-      .filter((v): v is number => v !== null);
-    const t2List = filteredSessions
-      .map((s) => s.time2)
-      .filter((v): v is number => v !== null);
-    const t3List = filteredSessions
-      .map((s) => s.time3)
-      .filter((v): v is number => v !== null);
-
-    const meanSlot1 = t1List.length
-      ? Math.round(t1List.reduce((a, b) => a + b, 0) / t1List.length)
-      : null;
-    const meanSlot2 = t2List.length
-      ? Math.round(t2List.reduce((a, b) => a + b, 0) / t2List.length)
-      : null;
-    const meanSlot3 = t3List.length
-      ? Math.round(t3List.reduce((a, b) => a + b, 0) / t3List.length)
-      : null;
-
-    return {
-      totalSessions: filteredSessions.length,
-      totalMeasurements: filteredSessions.reduce((acc, s) => acc + s.count, 0),
-      globalMean,
-      bestSession,
-      mostConsistentSession,
-      meanFlowPerSec,
-      meanSlot1,
-      meanSlot2,
-      meanSlot3,
-    };
-  }, [filteredSessions]);
-
   if (sessions.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center max-w-xl mx-auto my-8">
@@ -144,77 +84,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
       </div>
 
-      {summary && (
+      {filteredSessions.length > 0 && (
         <>
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Media Globale Tempi
-              </p>
-              <p className="mt-2 text-2xl font-bold font-mono-tabular text-slate-900 dark:text-white">
-                {formatTimeParts(summary.globalMean).fullMs}
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Su {summary.totalSessions} sessioni · {summary.totalMeasurements} misure
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Flusso Medio (Contenitore ÷ Media)
-              </p>
-              <p className="mt-2 text-2xl font-bold font-mono-tabular text-emerald-600 dark:text-emerald-400">
-                {summary.meanFlowPerSec !== null
-                  ? `${formatFlowValue(summary.meanFlowPerSec)} l/s`
-                  : '--'}
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">
-                {summary.meanFlowPerSec !== null
-                  ? `Pari a ${(summary.meanFlowPerSec * 60).toFixed(2)} litri/min`
-                  : 'Inserisci Contenitore per calcolare'}
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Sessione Più Costante (Scarto Min)
-              </p>
-              <p className="mt-2 text-2xl font-bold font-mono-tabular text-slate-900 dark:text-white">
-                ±{formatTimeParts(summary.mostConsistentSession.spread).fullMs}
-              </p>
-              <p className="mt-1 text-xs font-semibold text-cyan-400 truncate">
-                {summary.mostConsistentSession.category} · {summary.mostConsistentSession.label}
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Rendimento per Campo (1° · 2° · 3°)
-              </p>
-              <div className="mt-2 space-y-1 text-xs font-mono-tabular">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">1° Dato medio:</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {formatTimeParts(summary.meanSlot1).full}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">2° Dato medio:</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {formatTimeParts(summary.meanSlot2).full}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">3° Dato medio:</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {formatTimeParts(summary.meanSlot3).full}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Visual Progression Chart of the Last 12 Sessions */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">

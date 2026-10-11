@@ -125,6 +125,38 @@ jobs:
             ].join("\n");
             gradle = gradle.replace(/    buildTypes\s*\{/, signingBlock);
             fs.writeFileSync("android/app/build.gradle", gradle);
+            const mainActivityPath = "android/app/src/main/java/com/cronometro3misure/app/MainActivity.java";
+            if (fs.existsSync(mainActivityPath)) {
+              const mainActivityJava = [
+                "package com.cronometro3misure.app;",
+                "",
+                "import android.os.Bundle;",
+                "import android.view.WindowManager;",
+                "import com.getcapacitor.BridgeActivity;",
+                "",
+                "public class MainActivity extends BridgeActivity {",
+                "    @Override",
+                "    public void onCreate(Bundle savedInstanceState) {",
+                "        super.onCreate(savedInstanceState);",
+                "        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);",
+                "    }",
+                "",
+                "    @Override",
+                "    public void onResume() {",
+                "        super.onResume();",
+                "        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);",
+                "    }",
+                "",
+                "    @Override",
+                "    public void onPause() {",
+                "        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);",
+                "        super.onPause();",
+                "    }",
+                "}",
+                ""
+              ].join("\n");
+              fs.writeFileSync(mainActivityPath, mainActivityJava);
+            }
           '
           npx cap copy android
           for dir in android/app/src/main/res/mipmap-*dpi; do

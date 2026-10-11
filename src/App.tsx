@@ -56,6 +56,7 @@ import { PWAInstallButton, OfflineIndicator, AppUpdateBanner } from './component
 import { HistoryView } from './components/HistoryView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { AndroidCodeView } from './components/AndroidCodeView';
+import { useScreenWakeLock } from './hooks/useScreenWakeLock';
 
 type ActiveTab = 'chrono' | 'history' | 'analytics' | 'android_code';
 
@@ -105,6 +106,10 @@ export default function App() {
   const rafRef = useRef<number | null>(null);
   const startPerfRef = useRef<number>(0);
   const containerInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Mantiene il display sempre attivo e non attenuato finché l'app è in primo piano,
+  // rilasciando il blocco quando l'app passa in background
+  useScreenWakeLock();
 
   // Ensure dark class is always set on root html element & automatically enter fullscreen in Web App mode
   useEffect(() => {
