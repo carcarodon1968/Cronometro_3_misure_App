@@ -966,15 +966,15 @@ export default function App() {
                 </div>
 
                 {/* Primary Tactile Controls (Start / Stop / Reset + Convalida e Registra) */}
-                <div className="space-y-1.5 sm:space-y-3 pt-1">
-                  <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+                <div className="space-y-2 sm:space-y-3.5 pt-1.5">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
                     {!isRunning ? (
                       <button
                         onClick={handleStart}
                         disabled={pendingTimeMs !== null}
-                        className="col-span-2 h-10 sm:min-h-[54px] px-3 sm:px-6 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.99] disabled:active:scale-100 text-white font-semibold text-xs sm:text-base transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                        className="col-span-2 min-h-[56px] sm:min-h-[68px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.99] disabled:active:scale-100 text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 sm:gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
                       >
-                        <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current shrink-0" />
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current shrink-0" />
                         <span className="truncate">
                           {time1 !== null &&
                           time2 !== null &&
@@ -988,9 +988,9 @@ export default function App() {
                     ) : (
                       <button
                         onClick={handleStop}
-                        className="col-span-2 h-10 sm:min-h-[54px] px-3 sm:px-6 rounded-xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-950 font-semibold text-xs sm:text-base transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                        className="col-span-2 min-h-[56px] sm:min-h-[68px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-950 font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 sm:gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
                       >
-                        <Square className="w-4 h-4 sm:w-5 sm:h-5 fill-current text-orange-600 shrink-0" />
+                        <Square className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-orange-600 shrink-0" />
                         <span className="truncate">Stop ({activeSlot}° Dato)</span>
                       </button>
                     )}
@@ -1003,9 +1003,9 @@ export default function App() {
                           : lastSavedId === null ||
                             (time1 === null && time2 === null && time3 === null)
                       }
-                      className="col-span-1 h-10 sm:min-h-[54px] px-2 sm:px-4 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+                      className="col-span-1 min-h-[56px] sm:min-h-[68px] px-3 sm:px-5 py-3 sm:py-4 rounded-2xl border-2 border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-100 font-bold text-sm sm:text-base transition-colors flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer whitespace-nowrap"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                      <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                       <span className="truncate">
                         {isRunning || pendingTimeMs !== null
                           ? `Azzera ${activeSlot}°`
@@ -1018,9 +1018,9 @@ export default function App() {
                   <button
                     onClick={handleValidateAndRecord}
                     disabled={isRunning || pendingTimeMs === null}
-                    className="w-full h-10 sm:min-h-[54px] px-3 sm:px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.99] text-white font-semibold text-xs sm:text-base transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                    className="w-full min-h-[56px] sm:min-h-[68px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.99] text-white font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-2 sm:gap-2.5 shadow-md cursor-pointer whitespace-nowrap"
                   >
-                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                     <span>Convalida e Registra {activeSlot}° dato</span>
                   </button>
                 </div>
