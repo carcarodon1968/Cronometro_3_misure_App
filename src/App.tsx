@@ -715,7 +715,7 @@ export default function App() {
         >
           <span>Cronometro 3 misure</span>
           <span className="text-xs font-mono-tabular font-semibold text-orange-400/90">
-            v.1.0.4
+            v.1.0.5
           </span>
         </a>
 

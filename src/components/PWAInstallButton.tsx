@@ -16,7 +16,7 @@ const REMOTE_VERSION_URL =
 const GITHUB_RELEASES_API =
   'https://api.github.com/repos/carcarodon1968/Cronometro_3_misure_App/releases';
 const DEFAULT_APK_URL =
-  'https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.4/Cronometro_3_misure_v.1.0.4.apk';
+  'https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.5/Cronometro_3_misure_v.1.0.5.apk';
 
 function normalizeVersion(v: string): string {
   return String(v || '')
@@ -92,7 +92,7 @@ export const AppUpdateBanner: React.FC = () => {
 
       // 1. Read local bundled version.json
       let currentLocal: VersionManifest = {
-        version: '1.0.4',
+        version: '1.0.5',
         buildNumber: 0,
         apkUrl: DEFAULT_APK_URL,
       };
@@ -133,7 +133,7 @@ export const AppUpdateBanner: React.FC = () => {
               );
               const highestRelease = sortedReleases[0];
               const tagVersion =
-                normalizeVersion(highestRelease?.tag_name || '') || '1.0.4';
+                normalizeVersion(highestRelease?.tag_name || '') || '1.0.5';
               const apkAsset = Array.isArray(highestRelease?.assets)
                 ? highestRelease.assets.find((a: { name?: string }) =>
                     String(a.name || '').endsWith('.apk')
