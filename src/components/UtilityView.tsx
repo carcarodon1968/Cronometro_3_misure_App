@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Calculator,
   StickyNote,
   Copy,
   Check,
@@ -18,11 +17,10 @@ import {
   PinOff,
   Edit3,
   Clock,
-  Smartphone,
-  ExternalLink,
   X,
-  FileText,
+  Calculator,
 } from 'lucide-react';
+import { CalculatorModal } from './CalculatorModal';
 
 export interface NoteItem {
   id: string;
@@ -83,7 +81,9 @@ export function UtilityView() {
   const [noteCategory, setNoteCategory] = useState<NoteItem['category']>('Generale');
   const [notePinned, setNotePinned] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [systemNotice, setSystemNotice] = useState<string | null>(null);
+
+  // ---------- CALCULATOR STATE ----------
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
 
   // Save notes to localStorage
   useEffect(() => {
@@ -100,40 +100,6 @@ export function UtilityView() {
         navigator.vibrate(15);
       } catch {
         // ignore
-      }
-    }
-  };
-
-  // Launch external Phone Calculator App
-  const handleLaunchPhoneCalculator = () => {
-    triggerHaptic();
-    try {
-      const intentUri =
-        'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_CALCULATOR;end';
-      window.location.href = intentUri;
-      setSystemNotice('Richiesta apertura Calcolatrice del telefono inviata...');
-      setTimeout(() => setSystemNotice(null), 4000);
-    } catch {
-      setSystemNotice('Impossibile aprire automaticamente la calcolatrice di sistema.');
-      setTimeout(() => setSystemNotice(null), 4000);
-    }
-  };
-
-  // Launch external Phone Notes App
-  const handleLaunchPhoneNotes = () => {
-    triggerHaptic();
-    try {
-      const intentUri =
-        'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_NOTES;end';
-      window.location.href = intentUri;
-      setSystemNotice('Richiesta apertura Note del telefono inviata...');
-      setTimeout(() => setSystemNotice(null), 4000);
-    } catch {
-      if (navigator.share) {
-        navigator.share({ title: 'Note', text: '' }).catch(() => {});
-      } else {
-        setSystemNotice('Impossibile aprire direttamente le note di sistema.');
-        setTimeout(() => setSystemNotice(null), 4000);
       }
     }
   };
@@ -305,103 +271,62 @@ export function UtilityView() {
     setNoteContent((prev) => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + stamp);
   };
 
+  const handleReceiveFromCalculator = (expression: string, result: string) => {
+    triggerHaptic();
+    // If composing a note, append into text
+    if (isComposing) {
+      const stamp = `[Calcolo: ${expression} = ${result}] `;
+      setNoteContent((prev) => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + stamp);
+    } else {
+      // Create a new note from the calculation
+      const newNote: NoteItem = {
+        id: 'note-' + Date.now(),
+        title: `Calcolo: ${result}`,
+        content: `Formula: ${expression}\nRisultato: ${result}\nData: ${new Date().toLocaleString('it-IT')}`,
+        category: 'Misure',
+        pinned: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      setNotes((prev) => [newNote, ...prev]);
+    }
+  };
+
   return (
-    <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 mb-20 md:mb-6 shadow-xl space-y-6">
-      {/* Top Header */}
+    <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 mb-20 md:mb-6 shadow-xl space-y-5">
+      {/* Top Header with prominent Calcolatrice button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
-            <Smartphone className="w-5 h-5" />
+            <StickyNote className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Utility & Strumenti</h2>
+            <h2 className="text-lg font-bold text-white">Utility & Blocco Note</h2>
             <p className="text-xs text-slate-400">
-              Accesso rapido alle applicazioni del telefono e gestione del blocco note
+              Gestione appunti, osservazioni sul campo e calcolatrice interna
             </p>
           </div>
         </div>
+
+        {/* Tasto Calcolatrice principale */}
+        <button
+          onClick={() => {
+            triggerHaptic();
+            setIsCalculatorOpen(true);
+          }}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white border border-slate-700 hover:border-orange-500/50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-black/20 group shrink-0"
+        >
+          <Calculator className="w-4 h-4 text-orange-400 group-hover:scale-110 transition-transform" />
+          <span>Calcolatrice</span>
+        </button>
       </div>
 
-      {/* Notice Toast */}
-      {systemNotice && (
-        <div className="p-3 bg-slate-800 border border-slate-700 text-xs text-slate-300 rounded-xl flex items-center justify-between animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <Smartphone className="w-4 h-4 text-orange-400 shrink-0" />
-            <span>{systemNotice}</span>
-          </div>
-          <button
-            onClick={() => setSystemNotice(null)}
-            className="text-slate-400 hover:text-white ml-2 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Phone System Apps Action Launchers */}
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Smartphone className="w-4 h-4 text-orange-400" />
-          <h3 className="text-sm font-bold text-white">Applicazioni del Telefono</h3>
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">
-            Android
-          </span>
-        </div>
-        <p className="text-xs text-slate-400 mb-4">
-          Avvia con un tocco le app native già installate sul tuo smartphone per calcoli o note veloci:
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Button 1: Calcolatrice del Telefono */}
-          <button
-            onClick={handleLaunchPhoneCalculator}
-            className="min-h-[58px] p-3.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-orange-500/50 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer group shadow-sm"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 group-hover:scale-105 transition-transform shrink-0">
-                <Calculator className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white group-hover:text-orange-400 transition-colors">
-                  Apri Calcolatrice del Telefono
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  App predefinita calcolatrice Android
-                </div>
-              </div>
-            </div>
-            <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-orange-400 transition-colors shrink-0 ml-2" />
-          </button>
-
-          {/* Button 2: Note del Telefono */}
-          <button
-            onClick={handleLaunchPhoneNotes}
-            className="min-h-[58px] p-3.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-cyan-500/50 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer group shadow-sm"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform shrink-0">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">
-                  Apri le Note del Telefono
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  Google Keep, Samsung Notes o Note di sistema
-                </div>
-              </div>
-            </div>
-            <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition-colors shrink-0 ml-2" />
-          </button>
-        </div>
-      </div>
-
-      {/* In-App Blocco Note Section */}
+      {/* Blocco Note Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <StickyNote className="w-4 h-4 text-orange-400" />
-            <h3 className="text-sm font-bold text-white">Blocco Note Locale</h3>
+            <h3 className="text-sm font-bold text-white">I Miei Appunti</h3>
             <span className="text-xs text-slate-400 font-mono">({notes.length})</span>
           </div>
 
@@ -679,7 +604,7 @@ export function UtilityView() {
                       <button
                         onClick={(e) => handleShareNote(note, e)}
                         className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                        title="Condividi nota con altre app del telefono"
+                        title="Condividi nota"
                       >
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
@@ -709,6 +634,13 @@ export function UtilityView() {
           </div>
         )}
       </div>
+
+      {/* Internal In-App Calculator Modal */}
+      <CalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+        onSendToNote={handleReceiveFromCalculator}
+      />
     </section>
   );
 }
