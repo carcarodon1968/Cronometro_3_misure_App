@@ -57,6 +57,7 @@ import { PWAInstallButton, OfflineIndicator, AppUpdateBanner } from './component
 import { HistoryView } from './components/HistoryView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { AndroidCodeView } from './components/AndroidCodeView';
+import { UtilityView } from './components/UtilityView';
 import { useScreenWakeLock } from './hooks/useScreenWakeLock';
 
 type ActiveTab = 'chrono' | 'history' | 'analytics' | 'android_code' | 'utility';
@@ -1264,25 +1265,7 @@ export default function App() {
         )}
 
         {activeTab === 'android_code' && <AndroidCodeView />}
-
-        {activeTab === 'utility' && (
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-              <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
-                <Wrench className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Utility</h2>
-                <p className="text-xs text-slate-400">
-                  Strumenti e funzioni aggiuntive di supporto
-                </p>
-              </div>
-            </div>
-            <div className="py-8 text-center text-sm text-slate-400">
-              Sezione Utility pronta.
-            </div>
-          </section>
-        )}
+        {activeTab === 'utility' && <UtilityView />}
       </main>
 
       {/* Mobile Fixed Bottom Navigation Bar (Ergonomic Thumb Zone, <15% viewport height) */}
