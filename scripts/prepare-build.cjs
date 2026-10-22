@@ -7,13 +7,16 @@ const repo = process.env.GITHUB_REPOSITORY || "carcarodon1968/Cronometro_3_misur
 const sha = (process.env.GITHUB_SHA || "local000").slice(0, 7);
 
 pkg.dependencies = {
-  "firebase": "latest",
-  "react": "^19.0.0",
-  "react-dom": "^19.0.0",
-  "lucide-react": "latest"
+  ...(pkg.dependencies || {}),
+  "firebase": pkg.dependencies?.firebase || "^13.0.0",
+  "jspdf": pkg.dependencies?.jspdf || "^4.2.1",
+  "lucide-react": pkg.dependencies?.["lucide-react"] || "^0.546.0",
+  "react": pkg.dependencies?.react || "^19.0.0",
+  "react-dom": pkg.dependencies?.["react-dom"] || "^19.0.0"
 };
 
 pkg.devDependencies = {
+  ...(pkg.devDependencies || {}),
   "@tailwindcss/vite": "^4.0.0",
   "@types/node": "^22.0.0",
   "@types/react": "^19.0.0",
@@ -27,7 +30,10 @@ pkg.devDependencies = {
 
 fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
 
-const pagesBase = "https://carcarodon1968.github.io/Cronometro_3_misure_App";
+const [repoOwner, repoShortName] = repo.split("/");
+const pagesBase = (repoOwner && repoShortName) 
+  ? `https://${repoOwner}.github.io/${repoShortName}`
+  : "https://carcarodon1968.github.io/Cronometro_3_misure_App";
 const manifest = {
   version,
   buildNumber: runNumber,
