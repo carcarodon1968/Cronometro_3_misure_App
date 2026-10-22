@@ -29,6 +29,17 @@ import {
 import { CalculatorModal } from './CalculatorModal';
 import { BubbleLevelModal } from './BubbleLevelModal';
 
+declare global {
+  interface Window {
+    AndroidTorch?: {
+      isAvailable: () => boolean;
+      setTorch: (enabled: boolean) => boolean;
+      toggleTorch: () => boolean;
+      isTorchOn: () => boolean;
+    };
+  }
+}
+
 export interface NoteItem {
   id: string;
   title: string;
@@ -120,6 +131,13 @@ export function UtilityView() {
   // Clean up flashlight track on unmount
   useEffect(() => {
     return () => {
+      if (typeof window !== 'undefined' && window.AndroidTorch) {
+        try {
+          if (window.AndroidTorch.isTorchOn()) {
+            window.AndroidTorch.setTorch(false);
+          }
+        } catch {}
+      }
       if (trackRef.current) {
         try {
           trackRef.current.stop();
@@ -144,11 +162,37 @@ export function UtilityView() {
   };
 
   // ------------------------------------------------------------------
-  // FLASHLIGHT TOGGLE (Hardware Camera Torch + Screen Torch Fallback)
+  // FLASHLIGHT TOGGLE (Hardware Camera Torch via Android Bridge or WebRTC)
   // ------------------------------------------------------------------
   const handleToggleFlashlight = async () => {
     triggerHaptic();
 
+    // 1. Android APK Nativo (CameraManager Hardware Flash senza stream WebRTC)
+    if (typeof window !== 'undefined' && window.AndroidTorch && window.AndroidTorch.isAvailable()) {
+      try {
+        const nextState = !isFlashOn;
+        const success = window.AndroidTorch.setTorch(nextState);
+        if (success) {
+          setIsFlashOn(nextState);
+          setFlashNotice(nextState ? 'Flash LED Hardware Acceso' : 'Flash LED Spento');
+          setTimeout(() => setFlashNotice(null), 3000);
+          return;
+        }
+      } catch (err) {
+        console.warn('Native AndroidTorch failed, attempting WebRTC fallback:', err);
+      }
+    }
+
+    // Spegnimento sicuro del flash nativo se attivo
+    if (typeof window !== 'undefined' && window.AndroidTorch) {
+      try {
+        if (window.AndroidTorch.isTorchOn()) {
+          window.AndroidTorch.setTorch(false);
+        }
+      } catch {}
+    }
+
+    // 2. Web / Browser WebRTC Torch (Chrome PWA)
     if (isFlashOn) {
       // Turn off hardware torch
       try {
@@ -169,7 +213,7 @@ export function UtilityView() {
       setIsFlashOn(false);
       setFlashNotice(null);
     } else {
-      // Attempt hardware torch
+      // Attempt hardware torch via WebRTC (Mobile Chrome / Edge)
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('WebRTC/Fotocamera non supportata nel browser');

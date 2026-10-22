@@ -124,8 +124,8 @@
 
     <a
       id="direct-apk-link"
-      href="./Cronometro_3_misure_v.1.0.5.apk"
-      download="Cronometro_3_misure_v.1.0.5.apk"
+      href="./Cronometro_3_misure_v.1.0.6.apk"
+      download="Cronometro_3_misure_v.1.0.6.apk"
       class="btn-primary"
     >
       <span>⬇ SCARICA E INSTALLA APK</span>
@@ -144,7 +144,7 @@
 
     <a
       id="release-page-link"
-      href="https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.5/Cronometro_3_misure_v.1.0.5.apk"
+      href="https://github.com/carcarodon1968/Cronometro_3_misure_App/releases/download/v.1.0.6/Cronometro_3_misure_v.1.0.6.apk"
       class="btn-secondary"
     >
       Scarica da Server Alternativo (GitHub Release)
@@ -154,7 +154,7 @@
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
-      var ver = (params.get('v') || '1.0.5').replace(/^v\.?/i, '');
+      var ver = (params.get('v') || '1.0.6').replace(/^v\.?/i, '');
       var badge = document.getElementById('ver-badge');
       var directLink = document.getElementById('direct-apk-link');
       var releaseLink = document.getElementById('release-page-link');
@@ -187,7 +187,7 @@
       }
 
       function applyVersion(v, directUrl, releaseApkUrl) {
-        var cleanV = String(v || '1.0.5').replace(/^v\.?/i, '');
+        var cleanV = String(v || '1.0.6').replace(/^v\.?/i, '');
         var fileName = 'Cronometro_3_misure_v.' + cleanV + '.apk';
         var resolvedDirect =
           directUrl ||

@@ -1,7 +1,7 @@
 const fs = require("fs");
 
 const verCode = process.env.VER_CODE || "101";
-const appVer = process.env.APP_VER || "1.0.5";
+const appVer = process.env.APP_VER || "1.0.6";
 
 let gradle = fs.readFileSync("android/app/build.gradle", "utf8");
 gradle = gradle.replace(/versionCode\s+\d+/, "versionCode " + verCode);
@@ -28,11 +28,21 @@ fs.writeFileSync("android/app/build.gradle", gradle);
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
 if (fs.existsSync(manifestPath)) {
   let manifest = fs.readFileSync(manifestPath, "utf8");
-  if (!manifest.includes("REQUEST_INSTALL_PACKAGES")) {
-    manifest = manifest.replace(
-      "</manifest>",
-      '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n</manifest>'
-    );
+  const requiredPermissions = [
+    '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />',
+    '<uses-permission android:name="android.permission.CAMERA" />',
+    '<uses-permission android:name="android.permission.FLASHLIGHT" />',
+    '<uses-feature android:name="android.hardware.camera" android:required="false" />',
+    '<uses-feature android:name="android.hardware.camera.flash" android:required="false" />'
+  ];
+  let additions = "";
+  for (const entry of requiredPermissions) {
+    if (!manifest.includes(entry)) {
+      additions += `    ${entry}\n`;
+    }
+  }
+  if (additions) {
+    manifest = manifest.replace("</manifest>", `${additions}</manifest>`);
     fs.writeFileSync(manifestPath, manifest);
   }
 }
@@ -57,8 +67,11 @@ if (fs.existsSync(mainActivityPath)) {
   const mainActivityJava = `package com.cronometro3misure.app;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -93,6 +106,7 @@ public class MainActivity extends BridgeActivity {
     private AlertDialog progressDialog = null;
     private ProgressBar progressBar = null;
     private TextView progressText = null;
+    private TorchBridge torchBridgeInstance = null;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -128,9 +142,11 @@ public class MainActivity extends BridgeActivity {
                 });
             }
         } catch (Exception ignored) {}
+        torchBridgeInstance = new TorchBridge();
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebView webView = getBridge().getWebView();
             webView.addJavascriptInterface(new ApkUpdaterBridge(), "AndroidApkUpdater");
+            webView.addJavascriptInterface(torchBridgeInstance, "AndroidTorch");
             webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
@@ -192,6 +208,16 @@ public class MainActivity extends BridgeActivity {
     public void onPause() {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         super.onPause();
+    }
+
+    @Override
+    public void onDestroy() {
+        try {
+            if (torchBridgeInstance != null && torchBridgeInstance.isTorchOn()) {
+                torchBridgeInstance.setTorch(false);
+            }
+        } catch (Exception ignored) {}
+        super.onDestroy();
     }
 
     private void showNativeProgressDialog() {
@@ -337,7 +363,7 @@ public class MainActivity extends BridgeActivity {
 
     private String extractVersionFromUrl(String rawUrl) {
         try {
-            if (rawUrl == null) return "1.0.5";
+            if (rawUrl == null) return "1.0.6";
             Uri u = Uri.parse(rawUrl);
             String qv = u.getQueryParameter("v");
             if (qv != null && !qv.trim().isEmpty()) {
@@ -348,7 +374,7 @@ public class MainActivity extends BridgeActivity {
                 return m.group(1);
             }
         } catch (Exception ignored) {}
-        return "1.0.5";
+        return "1.0.6";
     }
 
     private boolean isValidApkFile(File f) {
@@ -499,6 +525,75 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         }).start();
+    }
+
+    public class TorchBridge {
+        private String cameraIdWithFlash = null;
+        private boolean isTorchOn = false;
+
+        private String getCameraId() {
+            if (cameraIdWithFlash != null) return cameraIdWithFlash;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null;
+            try {
+                CameraManager camManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+                if (camManager != null) {
+                    for (String id : camManager.getCameraIdList()) {
+                        CameraCharacteristics characteristics = camManager.getCameraCharacteristics(id);
+                        Boolean hasFlash = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                        Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                        if (hasFlash != null && hasFlash && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
+                            cameraIdWithFlash = id;
+                            return id;
+                        }
+                    }
+                    for (String id : camManager.getCameraIdList()) {
+                        CameraCharacteristics characteristics = camManager.getCameraCharacteristics(id);
+                        Boolean hasFlash = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                        if (hasFlash != null && hasFlash) {
+                            cameraIdWithFlash = id;
+                            return id;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            return null;
+        }
+
+        @JavascriptInterface
+        public boolean isAvailable() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
+            try {
+                return getCameraId() != null;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean setTorch(final boolean enabled) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
+            try {
+                final String id = getCameraId();
+                if (id == null) return false;
+                final CameraManager camManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+                if (camManager == null) return false;
+                camManager.setTorchMode(id, enabled);
+                isTorchOn = enabled;
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean toggleTorch() {
+            return setTorch(!isTorchOn);
+        }
+
+        @JavascriptInterface
+        public boolean isTorchOn() {
+            return isTorchOn;
+        }
     }
 
     public class ApkUpdaterBridge {
