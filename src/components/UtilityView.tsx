@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   StickyNote,
   Copy,
@@ -19,8 +19,15 @@ import {
   Clock,
   X,
   Calculator,
+  Crosshair,
+  Flashlight,
+  Camera,
+  Image as ImageIcon,
+  Sun,
+  Maximize2,
 } from 'lucide-react';
 import { CalculatorModal } from './CalculatorModal';
+import { BubbleLevelModal } from './BubbleLevelModal';
 
 export interface NoteItem {
   id: string;
@@ -28,6 +35,7 @@ export interface NoteItem {
   content: string;
   category: 'Generale' | 'Misure' | 'Impianto' | 'Diga / Vasca' | 'Promemoria';
   pinned: boolean;
+  photos?: string[]; // compressed base64 JPEG strings
   createdAt: number;
   updatedAt: number;
 }
@@ -60,9 +68,10 @@ export function UtilityView() {
         {
           id: 'sample-1',
           title: 'Promemoria Misure Flusso',
-          content: 'Registrare 3 prove consecutive per ogni vasca prima di validare la media. Verificare il livello idrometrico iniziale.',
+          content: 'Registrare 3 prove consecutive per ogni vasca prima di validare la media. Verificare il livello idrometrico iniziale e scattare foto allo stramazzo se necessario.',
           category: 'Misure',
           pinned: true,
+          photos: [],
           createdAt: Date.now() - 3600000 * 2,
           updatedAt: Date.now() - 3600000 * 2,
         },
@@ -80,10 +89,24 @@ export function UtilityView() {
   const [noteContent, setNoteContent] = useState<string>('');
   const [noteCategory, setNoteCategory] = useState<NoteItem['category']>('Generale');
   const [notePinned, setNotePinned] = useState<boolean>(false);
+  const [notePhotos, setNotePhotos] = useState<string[]>([]);
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  // ---------- CALCULATOR STATE ----------
+  // ---------- TOOL MODALS & SENSORS ----------
   const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
+  const [isBubbleLevelOpen, setIsBubbleLevelOpen] = useState<boolean>(false);
+
+  // ---------- FLASHLIGHT LED STATE ----------
+  const [isFlashOn, setIsFlashOn] = useState<boolean>(false);
+  const [isScreenTorchOn, setIsScreenTorchOn] = useState<boolean>(false);
+  const [flashNotice, setFlashNotice] = useState<string | null>(null);
+
+  const streamRef = useRef<MediaStream | null>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   // Save notes to localStorage
   useEffect(() => {
@@ -94,6 +117,22 @@ export function UtilityView() {
     }
   }, [notes]);
 
+  // Clean up flashlight track on unmount
+  useEffect(() => {
+    return () => {
+      if (trackRef.current) {
+        try {
+          trackRef.current.stop();
+        } catch {}
+      }
+      if (streamRef.current) {
+        try {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+        } catch {}
+      }
+    };
+  }, []);
+
   const triggerHaptic = () => {
     if (typeof window !== 'undefined' && 'vibrate' in navigator) {
       try {
@@ -102,6 +141,147 @@ export function UtilityView() {
         // ignore
       }
     }
+  };
+
+  // ------------------------------------------------------------------
+  // FLASHLIGHT TOGGLE (Hardware Camera Torch + Screen Torch Fallback)
+  // ------------------------------------------------------------------
+  const handleToggleFlashlight = async () => {
+    triggerHaptic();
+
+    if (isFlashOn) {
+      // Turn off hardware torch
+      try {
+        if (trackRef.current) {
+          await (trackRef.current as unknown as { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
+            advanced: [{ torch: false }],
+          });
+          trackRef.current.stop();
+          trackRef.current = null;
+        }
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+      } catch (err) {
+        console.warn('Error turning off torch:', err);
+      }
+      setIsFlashOn(false);
+      setFlashNotice(null);
+    } else {
+      // Attempt hardware torch
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('WebRTC/Fotocamera non supportata nel browser');
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        });
+
+        const track = stream.getVideoTracks()[0];
+        const capabilities = (track.getCapabilities && (track.getCapabilities() as Record<string, unknown>)) || {};
+
+        if ('torch' in capabilities) {
+          await (track as unknown as { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
+            advanced: [{ torch: true }],
+          });
+          streamRef.current = stream;
+          trackRef.current = track;
+          setIsFlashOn(true);
+          setFlashNotice('Flash LED Acceso');
+          setTimeout(() => setFlashNotice(null), 3000);
+        } else {
+          // Hardware torch constraint not supported on this device/browser: activate screen torch
+          track.stop();
+          setIsScreenTorchOn(true);
+          setFlashNotice('Flash fisico non disponibile: Torcia a Schermo Bianco attivata');
+          setTimeout(() => setFlashNotice(null), 4000);
+        }
+      } catch (err) {
+        console.warn('Hardware torch error, activating screen torch:', err);
+        setIsScreenTorchOn(true);
+        setFlashNotice('Torcia a Schermo Bianco attivata (Flash hardware non disponibile)');
+        setTimeout(() => setFlashNotice(null), 4000);
+      }
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // PHOTO ATTACHMENT COMPRESSION & HANDLING
+  // ------------------------------------------------------------------
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1024;
+          const MAX_HEIGHT = 1024;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context error'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress to lightweight JPEG (~70-110KB)
+          resolve(canvas.toDataURL('image/jpeg', 0.72));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsCompressingPhoto(true);
+    triggerHaptic();
+
+    try {
+      const newBase64Photos: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+          const compressed = await compressImage(file);
+          newBase64Photos.push(compressed);
+        }
+      }
+      setNotePhotos((prev) => [...prev, ...newBase64Photos]);
+    } catch (err) {
+      console.error('Failed to compress photo:', err);
+    } finally {
+      setIsCompressingPhoto(false);
+      // Reset input value so same photo can be re-selected if desired
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    triggerHaptic();
+    setNotePhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Filtered & sorted notes
@@ -129,6 +309,7 @@ export function UtilityView() {
     setNoteContent('');
     setNoteCategory('Generale');
     setNotePinned(false);
+    setNotePhotos([]);
     setIsComposing(true);
   };
 
@@ -139,17 +320,18 @@ export function UtilityView() {
     setNoteContent(note.content);
     setNoteCategory(note.category);
     setNotePinned(note.pinned);
+    setNotePhotos(note.photos || []);
     setIsComposing(true);
   };
 
   const handleSaveNote = () => {
     triggerHaptic();
-    if (!noteTitle.trim() && !noteContent.trim()) {
+    if (!noteTitle.trim() && !noteContent.trim() && notePhotos.length === 0) {
       setIsComposing(false);
       return;
     }
 
-    const titleToSave = noteTitle.trim() || 'Appunto senza titolo';
+    const titleToSave = noteTitle.trim() || (notePhotos.length > 0 ? 'Foto appunto sul campo' : 'Appunto senza titolo');
 
     if (editingNoteId) {
       setNotes((prev) =>
@@ -161,6 +343,7 @@ export function UtilityView() {
                 content: noteContent,
                 category: noteCategory,
                 pinned: notePinned,
+                photos: notePhotos,
                 updatedAt: Date.now(),
               }
             : n
@@ -173,6 +356,7 @@ export function UtilityView() {
         content: noteContent,
         category: noteCategory,
         pinned: notePinned,
+        photos: notePhotos,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -181,6 +365,7 @@ export function UtilityView() {
 
     setIsComposing(false);
     setEditingNoteId(null);
+    setNotePhotos([]);
   };
 
   const handleDeleteNote = (id: string) => {
@@ -190,6 +375,7 @@ export function UtilityView() {
       if (editingNoteId === id) {
         setIsComposing(false);
         setEditingNoteId(null);
+        setNotePhotos([]);
       }
     }
   };
@@ -205,7 +391,8 @@ export function UtilityView() {
   const handleCopyNote = async (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic();
-    const text = `${note.title}\n\n${note.content}\n\n[${note.category} - ${new Date(note.updatedAt).toLocaleString('it-IT')}]`;
+    const photoCount = note.photos && note.photos.length > 0 ? ` [${note.photos.length} foto allegate]` : '';
+    const text = `${note.title}${photoCount}\n\n${note.content}\n\n[${note.category} - ${new Date(note.updatedAt).toLocaleString('it-IT')}]`;
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(note.id);
@@ -218,9 +405,10 @@ export function UtilityView() {
   const handleShareNote = async (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic();
+    const photoCount = note.photos && note.photos.length > 0 ? ` [${note.photos.length} foto allegate]` : '';
     const shareData = {
       title: note.title,
-      text: `${note.title}\n\n${note.content}`,
+      text: `${note.title}${photoCount}\n\n${note.content}`,
     };
     if (navigator.share) {
       try {
@@ -236,7 +424,8 @@ export function UtilityView() {
   const handleExportTxt = (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic();
-    const text = `${note.title}\nCategoria: ${note.category}\nData: ${new Date(note.updatedAt).toLocaleString('it-IT')}\n\n${note.content}`;
+    const photoCount = note.photos && note.photos.length > 0 ? `Foto allegate: ${note.photos.length}\n` : '';
+    const text = `${note.title}\nCategoria: ${note.category}\nData: ${new Date(note.updatedAt).toLocaleString('it-IT')}\n${photoCount}\n${note.content}`;
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -252,7 +441,9 @@ export function UtilityView() {
     const allText = notes
       .map(
         (n, i) =>
-          `=== NOTA ${i + 1}: ${n.title} [${n.category}] ===\nData: ${new Date(n.updatedAt).toLocaleString('it-IT')}\n\n${n.content}\n\n`
+          `=== NOTA ${i + 1}: ${n.title} [${n.category}] ===\nData: ${new Date(n.updatedAt).toLocaleString('it-IT')}\n${
+            n.photos && n.photos.length > 0 ? `[${n.photos.length} foto allegate]\n` : ''
+          }\n${n.content}\n\n`
       )
       .join('\n----------------------------------------\n\n');
 
@@ -273,18 +464,17 @@ export function UtilityView() {
 
   const handleReceiveFromCalculator = (expression: string, result: string) => {
     triggerHaptic();
-    // If composing a note, append into text
     if (isComposing) {
       const stamp = `[Calcolo: ${expression} = ${result}] `;
       setNoteContent((prev) => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + stamp);
     } else {
-      // Create a new note from the calculation
       const newNote: NoteItem = {
         id: 'note-' + Date.now(),
         title: `Calcolo: ${result}`,
         content: `Formula: ${expression}\nRisultato: ${result}\nData: ${new Date().toLocaleString('it-IT')}`,
         category: 'Misure',
         pinned: false,
+        photos: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -294,8 +484,8 @@ export function UtilityView() {
 
   return (
     <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 mb-20 md:mb-6 shadow-xl space-y-5">
-      {/* Top Header with prominent Calcolatrice button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+      {/* Top Header with title and quick action tools */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
             <StickyNote className="w-5 h-5" />
@@ -303,23 +493,100 @@ export function UtilityView() {
           <div>
             <h2 className="text-lg font-bold text-white">Utility & Blocco Note</h2>
             <p className="text-xs text-slate-400">
-              Gestione appunti, osservazioni sul campo e calcolatrice interna
+              Calcolatrice, livella a bolla, torcia flash LED e note con foto sul campo
             </p>
           </div>
         </div>
 
-        {/* Tasto Calcolatrice principale */}
-        <button
-          onClick={() => {
-            triggerHaptic();
-            setIsCalculatorOpen(true);
-          }}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white border border-slate-700 hover:border-orange-500/50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-black/20 group shrink-0"
-        >
-          <Calculator className="w-4 h-4 text-orange-400 group-hover:scale-110 transition-transform" />
-          <span>Calcolatrice</span>
-        </button>
+        {/* Quick Tools Bar: Calcolatrice + Livella a Bolla + Flash LED */}
+        <div className="flex items-center flex-wrap gap-2">
+          {/* 1. Tasto Calcolatrice */}
+          <button
+            onClick={() => {
+              triggerHaptic();
+              setIsCalculatorOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white border border-slate-700 hover:border-orange-500/50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm group shrink-0"
+          >
+            <Calculator className="w-4 h-4 text-orange-400 group-hover:scale-110 transition-transform" />
+            <span>Calcolatrice</span>
+          </button>
+
+          {/* 2. Tasto Livella a Bolla Digitale */}
+          <button
+            onClick={() => {
+              triggerHaptic();
+              setIsBubbleLevelOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white border border-slate-700 hover:border-cyan-500/50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm group shrink-0"
+            title="Livella digitale per pendenze, canalette e stramazzi"
+          >
+            <Crosshair className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+            <span>Livella a Bolla</span>
+          </button>
+
+          {/* 3. Interruttore Torcia Flash LED */}
+          <button
+            onClick={handleToggleFlashlight}
+            className={`inline-flex items-center justify-center gap-2 px-3.5 py-2 border rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0 ${
+              isFlashOn
+                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-amber-500/30'
+                : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700 hover:border-amber-500/50'
+            }`}
+            title="Accendi/Spegni il Flash LED dello smartphone per ispezioni al buio"
+          >
+            <Flashlight className={`w-4 h-4 ${isFlashOn ? 'text-slate-950 animate-pulse' : 'text-amber-400'}`} />
+            <span>Flash LED</span>
+            <span
+              className={`w-2 h-2 rounded-full transition-colors ${
+                isFlashOn ? 'bg-slate-950 ring-2 ring-white/60 animate-ping' : 'bg-slate-500'
+              }`}
+            />
+          </button>
+        </div>
       </div>
+
+      {/* Notice / Feedback Toast for Flashlight */}
+      {flashNotice && (
+        <div className="p-3 bg-slate-950 border border-amber-500/40 text-amber-300 text-xs rounded-xl flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Flashlight className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{flashNotice}</span>
+          </div>
+          <button
+            onClick={() => setFlashNotice(null)}
+            className="text-slate-400 hover:text-white cursor-pointer ml-2"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Full-Screen White Torch Fallback Mode */}
+      {isScreenTorchOn && (
+        <div
+          onClick={() => setIsScreenTorchOn(false)}
+          className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-between p-6 cursor-pointer select-none text-slate-900"
+          title="Tocca un punto qualsiasi dello schermo per spegnere la torcia"
+        >
+          <div className="flex items-center gap-2 pt-4 font-bold text-sm text-slate-800">
+            <Sun className="w-5 h-5 text-amber-500" />
+            <span>Torcia Schermo Attiva (Massima Luminosità)</span>
+          </div>
+          <div className="text-center">
+            <Flashlight className="w-16 h-16 mx-auto mb-2 text-slate-700 opacity-60" />
+            <p className="text-lg font-bold">Luce Bianca di Schermo</p>
+            <p className="text-xs text-slate-600 mt-1">
+              Usa la luce dello schermo per illuminare il pozzetto o il punto di misura
+            </p>
+          </div>
+          <div className="pb-6">
+            <span className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-lg">
+              Tocca per Spegnere
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Blocco Note Section */}
       <div className="space-y-4">
@@ -470,7 +737,7 @@ export function UtilityView() {
                 </button>
               </div>
               <textarea
-                rows={5}
+                rows={4}
                 placeholder="Scrivi qui osservazioni, numeri, misure, dettagli tecnici o anomalie riscontrate..."
                 value={noteContent}
                 onChange={(e) => setNoteContent(e.target.value)}
@@ -478,11 +745,98 @@ export function UtilityView() {
               />
             </div>
 
+            {/* Foto-Allegato Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Foto Allegata all'Appunto ({notePhotos.length})</span>
+                </span>
+
+                <div className="flex items-center gap-2">
+                  {/* Direct Camera Capture */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoSelected}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={isCompressingPhoto}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-semibold text-orange-400 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Scatta Foto</span>
+                  </button>
+
+                  {/* Gallery File Selection */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handlePhotoSelected}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCompressingPhoto}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Galleria</span>
+                  </button>
+                </div>
+              </div>
+
+              {isCompressingPhoto && (
+                <div className="py-2 text-xs text-orange-400 animate-pulse flex items-center gap-2">
+                  <Clock className="w-3 h-3 animate-spin" />
+                  <span>Elaborazione e ottimizzazione foto in corso...</span>
+                </div>
+              )}
+
+              {/* Photo Thumbnails in Composer */}
+              {notePhotos.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-1">
+                  {notePhotos.map((photo, index) => (
+                    <div
+                      key={index}
+                      className="relative group rounded-xl overflow-hidden border border-slate-700 bg-slate-900 aspect-square"
+                    >
+                      <img
+                        src={photo}
+                        alt={`Allegato ${index + 1}`}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-90"
+                        onClick={() => setLightboxImage(photo)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(index)}
+                        className="absolute top-1 right-1 p-1 bg-red-600/90 text-white rounded-full hover:bg-red-700 transition-colors shadow-md cursor-pointer"
+                        title="Rimuovi foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Composer Buttons */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
-                onClick={() => setIsComposing(false)}
+                onClick={() => {
+                  setIsComposing(false);
+                  setNotePhotos([]);
+                }}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
                 Annulla
@@ -506,7 +860,7 @@ export function UtilityView() {
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               {notesSearch
                 ? 'Nessun appunto corrisponde alla ricerca corrente.'
-                : 'Crea una nuova nota per appuntare parametri, misure sul campo o note di manutenzione.'}
+                : 'Crea una nuova nota per appuntare parametri, misure sul campo o note di manutenzione con foto.'}
             </p>
             {!isComposing && (
               <button
@@ -523,6 +877,7 @@ export function UtilityView() {
             {filteredNotes.map((note) => {
               const catStyle = CATEGORY_COLORS[note.category] || CATEGORY_COLORS.Generale;
               const isCopied = copiedId === note.id;
+              const hasPhotos = note.photos && note.photos.length > 0;
 
               return (
                 <div
@@ -539,6 +894,12 @@ export function UtilityView() {
                         >
                           {note.category}
                         </span>
+                        {hasPhotos && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
+                            <Camera className="w-3 h-3 text-orange-400" />
+                            <span>{note.photos!.length}</span>
+                          </span>
+                        )}
                         <span className="text-[11px] text-slate-500 font-mono">
                           {new Date(note.updatedAt).toLocaleDateString('it-IT', {
                             day: '2-digit',
@@ -568,9 +929,38 @@ export function UtilityView() {
                     </h4>
 
                     {/* Content Preview */}
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-4 font-sans">
-                      {note.content}
-                    </p>
+                    {note.content && (
+                      <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-3 font-sans mb-3">
+                        {note.content}
+                      </p>
+                    )}
+
+                    {/* Attached Photos Preview in Card */}
+                    {hasPhotos && (
+                      <div
+                        className="grid grid-cols-4 gap-1.5 my-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {note.photos!.slice(0, 4).map((photo, pIdx) => (
+                          <div
+                            key={pIdx}
+                            onClick={() => setLightboxImage(photo)}
+                            className="aspect-square rounded-lg overflow-hidden border border-slate-800 hover:border-orange-500/50 cursor-pointer relative group/img bg-slate-900"
+                          >
+                            <img
+                              src={photo}
+                              alt="Foto appunto"
+                              className="w-full h-full object-cover transition-transform group-hover/img:scale-105"
+                            />
+                            {pIdx === 3 && note.photos!.length > 4 && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-xs font-bold text-white">
+                                +{note.photos!.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Bottom Action Footer */}
@@ -641,6 +1031,35 @@ export function UtilityView() {
         onClose={() => setIsCalculatorOpen(false)}
         onSendToNote={handleReceiveFromCalculator}
       />
+
+      {/* Internal Bubble Level Modal */}
+      <BubbleLevelModal
+        isOpen={isBubbleLevelOpen}
+        onClose={() => setIsBubbleLevelOpen(false)}
+      />
+
+      {/* Full-Screen Lightbox Image Viewer */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-3xl max-h-[90vh] flex flex-col items-center">
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="absolute -top-12 right-0 p-2 text-white bg-slate-800/80 hover:bg-slate-700 rounded-full transition-colors cursor-pointer"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={lightboxImage}
+              alt="Foto ingrandita"
+              className="max-h-[85vh] max-w-full object-contain rounded-xl shadow-2xl border border-slate-800"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
