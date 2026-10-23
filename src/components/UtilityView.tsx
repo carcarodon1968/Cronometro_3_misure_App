@@ -133,6 +133,7 @@ export function UtilityView() {
   const recognitionRef = useRef<any>(null);
   const lastFinalIndexRef = useRef<number>(-1);
   const voiceTargetRef = useRef<'content' | 'title'>('content');
+  const isUserListeningRef = useRef<boolean>(false);
 
   // ---------- VOICE DICTATION (SPEECH-TO-TEXT) ----------
   const [isVoiceListening, setIsVoiceListening] = useState<boolean>(false);
@@ -392,6 +393,37 @@ export function UtilityView() {
     return s;
   };
 
+  // Helper to remove any overlap when browsers emit cumulative or partially-repeated speech transcripts
+  const stripOverlap = (existingText: string, incomingText: string): string => {
+    const ex = existingText.trim();
+    const inc = incomingText.trim();
+    if (!ex) return inc;
+    if (!inc) return '';
+
+    const exLower = ex.toLowerCase();
+    const incLower = inc.toLowerCase();
+
+    // If existing text already ends with the exact incoming string (ignoring punctuation), it is 100% duplicate
+    const cleanExLower = exLower.replace(/[,.:;?!]+$/, '').trim();
+    const cleanIncLower = incLower.replace(/[,.:;?!]+$/, '').trim();
+    if (cleanExLower.endsWith(cleanIncLower)) {
+      return '';
+    }
+
+    // Check if the beginning of incomingText overlaps with the end of existingText
+    // e.g. existing ends with "ispezione", incoming is "ispezione canale" -> returns "canale"
+    const incWords = inc.split(/\s+/);
+    for (let k = incWords.length; k >= 1; k--) {
+      const prefix = incWords.slice(0, k).join(' ').toLowerCase().replace(/[,.:;?!]+$/, '').trim();
+      if (prefix && cleanExLower.endsWith(prefix)) {
+        const remainder = incWords.slice(k).join(' ').trim();
+        return remainder;
+      }
+    }
+
+    return inc;
+  };
+
   const appendSpokenText = (spoken: string, target: 'content' | 'title') => {
     const formatted = formatSpokenText(spoken.trim());
     if (!formatted) return;
@@ -402,11 +434,9 @@ export function UtilityView() {
         if (!cleanPrev) {
           return formatted.charAt(0).toUpperCase() + formatted.slice(1);
         }
-        // Deduplication check: if previous already ends with this spoken phrase, avoid duplicate
-        if (cleanPrev.toLowerCase().endsWith(formatted.toLowerCase())) {
-          return cleanPrev;
-        }
-        return `${cleanPrev} ${formatted}`;
+        const delta = stripOverlap(cleanPrev, formatted);
+        if (!delta) return cleanPrev;
+        return `${cleanPrev} ${delta}`;
       });
     } else {
       setNoteContent((prev) => {
@@ -414,10 +444,9 @@ export function UtilityView() {
         if (!cleanPrev) {
           return formatted.charAt(0).toUpperCase() + formatted.slice(1);
         }
-        // Deduplication check: if previous already ends with this spoken phrase, avoid duplicate
-        if (cleanPrev.toLowerCase().endsWith(formatted.toLowerCase())) {
-          return cleanPrev;
-        }
+        const delta = stripOverlap(cleanPrev, formatted);
+        if (!delta) return cleanPrev;
+
         const endsWithPunctuationOrNewline =
           cleanPrev.endsWith('.') ||
           cleanPrev.endsWith('?') ||
@@ -425,8 +454,8 @@ export function UtilityView() {
           cleanPrev.endsWith('\n');
         const separator = cleanPrev.endsWith('\n') ? '' : ' ';
         const textToAppend = endsWithPunctuationOrNewline
-          ? formatted.charAt(0).toUpperCase() + formatted.slice(1)
-          : formatted;
+          ? delta.charAt(0).toUpperCase() + delta.slice(1)
+          : delta;
         return `${cleanPrev}${separator}${textToAppend}`;
       });
     }
@@ -472,6 +501,7 @@ export function UtilityView() {
 
   const stopVoiceDictation = () => {
     triggerHaptic();
+    isUserListeningRef.current = false;
     setIsVoiceListening(false);
     setInterimVoiceText('');
 
@@ -494,6 +524,7 @@ export function UtilityView() {
     setVoiceError(null);
     setVoiceTarget(target);
     voiceTargetRef.current = target;
+    isUserListeningRef.current = true;
     lastFinalIndexRef.current = -1;
 
     // If already active on the same target, toggle off
@@ -526,6 +557,7 @@ export function UtilityView() {
       setVoiceError(
         "Dettatura vocale diretta non supportata da questo browser. Puoi usare il tasto Microfono sulla tastiera virtuale dello smartphone (Gboard)."
       );
+      isUserListeningRef.current = false;
       return;
     }
 
@@ -538,7 +570,8 @@ export function UtilityView() {
 
       const recognition = new SpeechRecognition();
       recognition.lang = 'it-IT';
-      recognition.continuous = target !== 'title';
+      // Use continuous: false for clean utterance segmentation (avoids Chrome cumulative duplication)
+      recognition.continuous = false;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
@@ -581,25 +614,45 @@ export function UtilityView() {
         console.warn('Speech recognition error:', event.error);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           setVoiceError("Accesso al microfono non consentito. Verifica i permessi del browser.");
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
         } else if (event.error === 'network') {
           setVoiceError("Riconoscimento vocale offline o rete assente. Usa il microfono sulla tastiera Gboard.");
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
         } else if (event.error !== 'no-speech') {
           setVoiceError(`Errore microfono (${event.error}).`);
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
         }
       };
 
       recognition.onend = () => {
-        setIsVoiceListening(false);
         setInterimVoiceText('');
+        // If dictating note content and user has not clicked stop, continue listening for the next phrase seamlessly
+        if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
+          lastFinalIndexRef.current = -1;
+          setTimeout(() => {
+            if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
+              try {
+                recognition.start();
+              } catch {
+                isUserListeningRef.current = false;
+                setIsVoiceListening(false);
+              }
+            }
+          }, 150);
+        } else {
+          isUserListeningRef.current = false;
+          setIsVoiceListening(false);
+        }
       };
 
       recognitionRef.current = recognition;
       recognition.start();
     } catch (e: any) {
       console.error('Failed to start speech recognition:', e);
+      isUserListeningRef.current = false;
       setIsVoiceListening(false);
       setVoiceError("Impossibile avviare il microfono: " + (e?.message || 'errore sconosciuto'));
     }
