@@ -131,6 +131,8 @@ export function UtilityView() {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const noteContentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<any>(null);
+  const lastFinalIndexRef = useRef<number>(-1);
+  const voiceTargetRef = useRef<'content' | 'title'>('content');
 
   // ---------- VOICE DICTATION (SPEECH-TO-TEXT) ----------
   const [isVoiceListening, setIsVoiceListening] = useState<boolean>(false);
@@ -400,6 +402,10 @@ export function UtilityView() {
         if (!cleanPrev) {
           return formatted.charAt(0).toUpperCase() + formatted.slice(1);
         }
+        // Deduplication check: if previous already ends with this spoken phrase, avoid duplicate
+        if (cleanPrev.toLowerCase().endsWith(formatted.toLowerCase())) {
+          return cleanPrev;
+        }
         return `${cleanPrev} ${formatted}`;
       });
     } else {
@@ -407,6 +413,10 @@ export function UtilityView() {
         const cleanPrev = prev.trim();
         if (!cleanPrev) {
           return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        }
+        // Deduplication check: if previous already ends with this spoken phrase, avoid duplicate
+        if (cleanPrev.toLowerCase().endsWith(formatted.toLowerCase())) {
+          return cleanPrev;
         }
         const endsWithPunctuationOrNewline =
           cleanPrev.endsWith('.') ||
@@ -437,7 +447,7 @@ export function UtilityView() {
         }
       } else if (type === 'result') {
         if (text) {
-          appendSpokenText(text, voiceTarget);
+          appendSpokenText(text, voiceTargetRef.current);
         }
         setInterimVoiceText('');
       } else if (type === 'end') {
@@ -458,7 +468,7 @@ export function UtilityView() {
     return () => {
       window.removeEventListener('androidSpeechEvent', handleAndroidSpeech);
     };
-  }, [voiceTarget]);
+  }, []);
 
   const stopVoiceDictation = () => {
     triggerHaptic();
@@ -483,6 +493,8 @@ export function UtilityView() {
     triggerHaptic();
     setVoiceError(null);
     setVoiceTarget(target);
+    voiceTargetRef.current = target;
+    lastFinalIndexRef.current = -1;
 
     // If already active on the same target, toggle off
     if (isVoiceListening && voiceTarget === target) {
@@ -526,28 +538,43 @@ export function UtilityView() {
 
       const recognition = new SpeechRecognition();
       recognition.lang = 'it-IT';
-      recognition.continuous = true;
+      recognition.continuous = target !== 'title';
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         setIsVoiceListening(true);
         setVoiceError(null);
+        lastFinalIndexRef.current = -1;
       };
 
       recognition.onresult = (event: any) => {
         let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const currentField = voiceTargetRef.current;
+
+        for (let i = 0; i < event.results.length; ++i) {
           const item = event.results[i];
-          const transcript = item[0]?.transcript || '';
           if (item.isFinal) {
-            appendSpokenText(transcript, target);
-            interim = '';
+            // Guarantee that each finalized index in the recognition results stream is processed AT MOST ONCE
+            if (i > lastFinalIndexRef.current) {
+              lastFinalIndexRef.current = i;
+              const transcript = item[0]?.transcript || '';
+              if (transcript.trim()) {
+                appendSpokenText(transcript, currentField);
+              }
+            }
           } else {
-            interim += transcript;
+            interim += item[0]?.transcript || '';
           }
         }
-        setInterimVoiceText(interim);
+        setInterimVoiceText(interim.trim());
+
+        // For title, stop immediately once the utterance has finalized
+        if (currentField === 'title' && lastFinalIndexRef.current >= 0) {
+          setTimeout(() => {
+            stopVoiceDictation();
+          }, 200);
+        }
       };
 
       recognition.onerror = (event: any) => {
