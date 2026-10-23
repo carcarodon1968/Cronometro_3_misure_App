@@ -32,8 +32,11 @@ if (fs.existsSync(manifestPath)) {
     '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />',
     '<uses-permission android:name="android.permission.CAMERA" />',
     '<uses-permission android:name="android.permission.FLASHLIGHT" />',
+    '<uses-permission android:name="android.permission.RECORD_AUDIO" />',
+    '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />',
     '<uses-feature android:name="android.hardware.camera" android:required="false" />',
-    '<uses-feature android:name="android.hardware.camera.flash" android:required="false" />'
+    '<uses-feature android:name="android.hardware.camera.flash" android:required="false" />',
+    '<uses-feature android:name="android.hardware.microphone" android:required="false" />'
   ];
   let additions = "";
   for (const entry of requiredPermissions) {
@@ -77,11 +80,16 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -107,6 +115,7 @@ public class MainActivity extends BridgeActivity {
     private ProgressBar progressBar = null;
     private TextView progressText = null;
     private TorchBridge torchBridgeInstance = null;
+    private SpeechBridge speechBridgeInstance = null;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -143,10 +152,20 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Exception ignored) {}
         torchBridgeInstance = new TorchBridge();
+        speechBridgeInstance = new SpeechBridge();
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebView webView = getBridge().getWebView();
             webView.addJavascriptInterface(new ApkUpdaterBridge(), "AndroidApkUpdater");
             webView.addJavascriptInterface(torchBridgeInstance, "AndroidTorch");
+            webView.addJavascriptInterface(speechBridgeInstance, "AndroidSpeech");
+            webView.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                    try {
+                        request.grant(request.getResources());
+                    } catch (Exception ignored) {}
+                }
+            });
             webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
@@ -612,6 +631,128 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void downloadAndInstall(final String apkUrl, final String fileName) {
             startNativeApkDownload(apkUrl, fileName);
+        }
+    }
+
+    public class SpeechBridge {
+        private SpeechRecognizer speechRecognizer = null;
+        private boolean isListening = false;
+
+        @JavascriptInterface
+        public boolean isAvailable() {
+            return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean isListening() {
+            return isListening;
+        }
+
+        @JavascriptInterface
+        public void startListening(final String lang) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 202);
+                                dispatchSpeechEvent("error", "permission_denied", "");
+                                return;
+                            }
+                        }
+                        if (speechRecognizer != null) {
+                            try { speechRecognizer.destroy(); } catch (Exception ignored) {}
+                            speechRecognizer = null;
+                        }
+                        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
+                        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, (lang != null && !lang.isEmpty()) ? lang : "it-IT");
+                        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+                        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+
+                        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                            @Override
+                            public void onReadyForSpeech(Bundle params) {
+                                isListening = true;
+                                dispatchSpeechEvent("ready", "", "");
+                            }
+                            @Override
+                            public void onBeginningOfSpeech() {
+                                dispatchSpeechEvent("listening", "", "");
+                            }
+                            @Override
+                            public void onRmsChanged(float rmsdB) {}
+                            @Override
+                            public void onBufferReceived(byte[] buffer) {}
+                            @Override
+                            public void onEndOfSpeech() {
+                                isListening = false;
+                                dispatchSpeechEvent("end", "", "");
+                            }
+                            @Override
+                            public void onError(int error) {
+                                isListening = false;
+                                dispatchSpeechEvent("error", "code_" + error, "");
+                            }
+                            @Override
+                            public void onResults(Bundle results) {
+                                isListening = false;
+                                ArrayList<String> matches = (results != null) ? results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) : null;
+                                String text = (matches != null && !matches.isEmpty()) ? matches.get(0) : "";
+                                dispatchSpeechEvent("result", "", text);
+                            }
+                            @Override
+                            public void onPartialResults(Bundle partialResults) {
+                                ArrayList<String> matches = (partialResults != null) ? partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) : null;
+                                String text = (matches != null && !matches.isEmpty()) ? matches.get(0) : "";
+                                if (!text.isEmpty()) {
+                                    dispatchSpeechEvent("partial", "", text);
+                                }
+                            }
+                            @Override
+                            public void onEvent(int eventType, Bundle params) {}
+                        });
+                        speechRecognizer.startListening(intent);
+                    } catch (Exception e) {
+                        isListening = false;
+                        dispatchSpeechEvent("error", e.getMessage(), "");
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void stopListening() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (speechRecognizer != null) {
+                            speechRecognizer.stopListening();
+                        }
+                    } catch (Exception ignored) {}
+                    isListening = false;
+                    dispatchSpeechEvent("end", "", "");
+                }
+            });
+        }
+
+        private void dispatchSpeechEvent(final String type, final String error, final String text) {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            String safeText = text != null ? text.replace("\\\\", "\\\\\\\\").replace("\"", "\\\\\"").replace("\n", " ") : "";
+                            String safeError = error != null ? error.replace("\\\\", "\\\\\\\\").replace("\"", "\\\\\"") : "";
+                            String js = "window.dispatchEvent(new CustomEvent('androidSpeechEvent', { detail: { type: '" + type + "', error: '" + safeError + "', text: '" + safeText + "' } }));";
+                            getBridge().getWebView().evaluateJavascript(js, null);
+                        } catch (Exception ignored) {}
+                    }
+                });
+            }
         }
     }
 }

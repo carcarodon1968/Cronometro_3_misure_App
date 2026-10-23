@@ -25,6 +25,9 @@ import {
   Image as ImageIcon,
   Sun,
   Maximize2,
+  Mic,
+  MicOff,
+  Radio,
 } from 'lucide-react';
 import { CalculatorModal } from './CalculatorModal';
 import { BubbleLevelModal } from './BubbleLevelModal';
@@ -37,6 +40,14 @@ declare global {
       toggleTorch: () => boolean;
       isTorchOn: () => boolean;
     };
+    AndroidSpeech?: {
+      isAvailable: () => boolean;
+      startListening: (lang?: string) => void;
+      stopListening: () => void;
+      isListening?: () => boolean;
+    };
+    SpeechRecognition?: any;
+    webkitSpeechRecognition?: any;
   }
 }
 
@@ -118,6 +129,14 @@ export function UtilityView() {
   const trackRef = useRef<MediaStreamTrack | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const noteContentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // ---------- VOICE DICTATION (SPEECH-TO-TEXT) ----------
+  const [isVoiceListening, setIsVoiceListening] = useState<boolean>(false);
+  const [voiceTarget, setVoiceTarget] = useState<'content' | 'title'>('content');
+  const [interimVoiceText, setInterimVoiceText] = useState<string>('');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // Save notes to localStorage
   useEffect(() => {
@@ -128,7 +147,7 @@ export function UtilityView() {
     }
   }, [notes]);
 
-  // Clean up flashlight track on unmount
+  // Clean up flashlight and speech recognition on unmount
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && window.AndroidTorch) {
@@ -136,6 +155,16 @@ export function UtilityView() {
           if (window.AndroidTorch.isTorchOn()) {
             window.AndroidTorch.setTorch(false);
           }
+        } catch {}
+      }
+      if (typeof window !== 'undefined' && window.AndroidSpeech) {
+        try {
+          window.AndroidSpeech.stopListening();
+        } catch {}
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
         } catch {}
       }
       if (trackRef.current) {
@@ -346,8 +375,212 @@ export function UtilityView() {
       });
   }, [notes, selectedCategory, notesSearch]);
 
+  // Helper to format spoken Italian punctuation ("punto", "virgola", "due punti", "a capo", etc.)
+  const formatSpokenText = (raw: string): string => {
+    let s = raw;
+    s = s.replace(/\bvirgola\b/gi, ',');
+    s = s.replace(/\bpunto e virgola\b/gi, ';');
+    s = s.replace(/\bdue punti\b/gi, ':');
+    s = s.replace(/\bpunto interrogativo\b/gi, '?');
+    s = s.replace(/\bpunto esclamativo\b/gi, '!');
+    s = s.replace(/\bpunto\b/gi, '.');
+    s = s.replace(/\ba capo\b/gi, '\n');
+    s = s.replace(/\bnuova riga\b/gi, '\n');
+    s = s.replace(/\s+([,.:;?!])/g, '$1');
+    return s;
+  };
+
+  const appendSpokenText = (spoken: string, target: 'content' | 'title') => {
+    const formatted = formatSpokenText(spoken.trim());
+    if (!formatted) return;
+
+    if (target === 'title') {
+      setNoteTitle((prev) => {
+        const cleanPrev = prev.trim();
+        if (!cleanPrev) {
+          return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        }
+        return `${cleanPrev} ${formatted}`;
+      });
+    } else {
+      setNoteContent((prev) => {
+        const cleanPrev = prev.trim();
+        if (!cleanPrev) {
+          return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        }
+        const endsWithPunctuationOrNewline =
+          cleanPrev.endsWith('.') ||
+          cleanPrev.endsWith('?') ||
+          cleanPrev.endsWith('!') ||
+          cleanPrev.endsWith('\n');
+        const separator = cleanPrev.endsWith('\n') ? '' : ' ';
+        const textToAppend = endsWithPunctuationOrNewline
+          ? formatted.charAt(0).toUpperCase() + formatted.slice(1)
+          : formatted;
+        return `${cleanPrev}${separator}${textToAppend}`;
+      });
+    }
+  };
+
+  // Listener for Android Native Speech events (if running inside APK with AndroidSpeech)
+  useEffect(() => {
+    const handleAndroidSpeech = (e: Event) => {
+      const customEvent = e as CustomEvent<{ type: string; error?: string; text?: string }>;
+      const { type, error, text } = customEvent.detail || {};
+
+      if (type === 'ready' || type === 'listening') {
+        setIsVoiceListening(true);
+        setVoiceError(null);
+      } else if (type === 'partial') {
+        if (text) {
+          setInterimVoiceText(text);
+        }
+      } else if (type === 'result') {
+        if (text) {
+          appendSpokenText(text, voiceTarget);
+        }
+        setInterimVoiceText('');
+      } else if (type === 'end') {
+        setIsVoiceListening(false);
+        setInterimVoiceText('');
+      } else if (type === 'error') {
+        setIsVoiceListening(false);
+        setInterimVoiceText('');
+        if (error === 'permission_denied') {
+          setVoiceError("Permesso microfono non concesso. Abilita l'accesso al microfono per l'app.");
+        } else if (error && error !== 'code_7') {
+          setVoiceError(`Microfono: ${error}`);
+        }
+      }
+    };
+
+    window.addEventListener('androidSpeechEvent', handleAndroidSpeech);
+    return () => {
+      window.removeEventListener('androidSpeechEvent', handleAndroidSpeech);
+    };
+  }, [voiceTarget]);
+
+  const stopVoiceDictation = () => {
+    triggerHaptic();
+    setIsVoiceListening(false);
+    setInterimVoiceText('');
+
+    if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
+      try {
+        window.AndroidSpeech.stopListening();
+      } catch {}
+    }
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+  };
+
+  const startVoiceDictation = (target: 'content' | 'title' = 'content') => {
+    triggerHaptic();
+    setVoiceError(null);
+    setVoiceTarget(target);
+
+    // If already active on the same target, toggle off
+    if (isVoiceListening && voiceTarget === target) {
+      stopVoiceDictation();
+      return;
+    }
+
+    // If active on different target, stop first
+    if (isVoiceListening) {
+      stopVoiceDictation();
+    }
+
+    // 1. Android APK Native SpeechRecognizer Bridge
+    if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
+      try {
+        setIsVoiceListening(true);
+        window.AndroidSpeech.startListening('it-IT');
+        return;
+      } catch (err) {
+        console.warn('AndroidSpeech bridge call failed, falling back to Web Speech', err);
+      }
+    }
+
+    // 2. Web Speech API (Chrome, Edge, Safari, PWA)
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceError(
+        "Dettatura vocale diretta non supportata da questo browser. Puoi usare il tasto Microfono sulla tastiera virtuale dello smartphone (Gboard)."
+      );
+      return;
+    }
+
+    try {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'it-IT';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsVoiceListening(true);
+        setVoiceError(null);
+      };
+
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const item = event.results[i];
+          const transcript = item[0]?.transcript || '';
+          if (item.isFinal) {
+            appendSpokenText(transcript, target);
+            interim = '';
+          } else {
+            interim += transcript;
+          }
+        }
+        setInterimVoiceText(interim);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setVoiceError("Accesso al microfono non consentito. Verifica i permessi del browser.");
+          setIsVoiceListening(false);
+        } else if (event.error === 'network') {
+          setVoiceError("Riconoscimento vocale offline o rete assente. Usa il microfono sulla tastiera Gboard.");
+          setIsVoiceListening(false);
+        } else if (event.error !== 'no-speech') {
+          setVoiceError(`Errore microfono (${event.error}).`);
+          setIsVoiceListening(false);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsVoiceListening(false);
+        setInterimVoiceText('');
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e: any) {
+      console.error('Failed to start speech recognition:', e);
+      setIsVoiceListening(false);
+      setVoiceError("Impossibile avviare il microfono: " + (e?.message || 'errore sconosciuto'));
+    }
+  };
+
   const handleOpenNewNote = () => {
     triggerHaptic();
+    stopVoiceDictation();
     setEditingNoteId(null);
     setNoteTitle('');
     setNoteContent('');
@@ -359,6 +592,7 @@ export function UtilityView() {
 
   const handleEditNote = (note: NoteItem) => {
     triggerHaptic();
+    stopVoiceDictation();
     setEditingNoteId(note.id);
     setNoteTitle(note.title);
     setNoteContent(note.content);
@@ -370,6 +604,7 @@ export function UtilityView() {
 
   const handleSaveNote = () => {
     triggerHaptic();
+    stopVoiceDictation();
     if (!noteTitle.trim() && !noteContent.trim() && notePhotos.length === 0) {
       setIsComposing(false);
       return;
@@ -725,7 +960,10 @@ export function UtilityView() {
                   {notePinned ? <Pin className="w-4 h-4" /> : <PinOff className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={() => setIsComposing(false)}
+                  onClick={() => {
+                    stopVoiceDictation();
+                    setIsComposing(false);
+                  }}
                   className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -736,9 +974,33 @@ export function UtilityView() {
             {/* Title & Category */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Titolo
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-400">
+                    Titolo
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => startVoiceDictation('title')}
+                    className={`text-[11px] flex items-center gap-1.5 px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                      isVoiceListening && voiceTarget === 'title'
+                        ? 'bg-red-500 text-white border-red-400 animate-pulse font-bold'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-orange-400 hover:border-slate-700'
+                    }`}
+                    title="Detta il titolo con la voce"
+                  >
+                    {isVoiceListening && voiceTarget === 'title' ? (
+                      <>
+                        <MicOff className="w-3 h-3" />
+                        <span>In ascolto...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-3 h-3 text-orange-400" />
+                        <span>Detta Titolo</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <input
                   type="text"
                   placeholder="Es. Ispezione Diga Sud - Scarico 2"
@@ -765,24 +1027,107 @@ export function UtilityView() {
               </div>
             </div>
 
-            {/* Content textarea */}
+            {/* Content textarea with Microphone Dictation */}
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                 <label className="block text-[11px] font-semibold text-slate-400">
                   Testo / Appunto
                 </label>
-                <button
-                  type="button"
-                  onClick={handleInsertTimestamp}
-                  className="text-[11px] text-orange-400 hover:text-orange-300 flex items-center gap-1 cursor-pointer"
-                >
-                  <Clock className="w-3 h-3" />
-                  <span>Inserisci Ora Corrente</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startVoiceDictation('content')}
+                    className={`text-xs flex items-center gap-1.5 px-3 py-1 rounded-xl border transition-all cursor-pointer font-bold shadow-sm ${
+                      isVoiceListening && voiceTarget === 'content'
+                        ? 'bg-red-500 text-white border-red-400 shadow-red-500/30 ring-2 ring-red-400/40 animate-pulse'
+                        : 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-500/40 text-orange-400 hover:text-orange-300'
+                    }`}
+                    title="Attiva/Disattiva la dettatura vocale con il microfono"
+                  >
+                    {isVoiceListening && voiceTarget === 'content' ? (
+                      <>
+                        <MicOff className="w-3.5 h-3.5" />
+                        <span>Ferma Microfono</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Dettatura Vocale (Microfono)</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleInsertTimestamp}
+                    className="text-[11px] text-slate-400 hover:text-slate-300 flex items-center gap-1 cursor-pointer px-2 py-1 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition-colors"
+                  >
+                    <Clock className="w-3 h-3 text-orange-400" />
+                    <span>Ora</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Live Voice Recording Status Banner */}
+              {isVoiceListening && (
+                <div className="mb-2 p-3 bg-gradient-to-r from-red-950/60 via-slate-900 to-slate-900 border border-red-500/50 rounded-xl flex items-center justify-between gap-3 shadow-lg shadow-red-950/30 animate-in fade-in">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative flex items-center justify-center shrink-0">
+                      <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping absolute" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 relative" />
+                    </div>
+                    {/* Soundwave equalizer bars */}
+                    <div className="flex items-end gap-1 h-4 shrink-0">
+                      <span className="w-1 bg-red-400 rounded-full animate-bounce [animation-delay:-0.3s] h-3" />
+                      <span className="w-1 bg-orange-400 rounded-full animate-bounce [animation-delay:-0.15s] h-4" />
+                      <span className="w-1 bg-amber-400 rounded-full animate-bounce [animation-delay:0s] h-2.5" />
+                      <span className="w-1 bg-red-400 rounded-full animate-bounce [animation-delay:-0.2s] h-4" />
+                      <span className="w-1 bg-orange-400 rounded-full animate-bounce [animation-delay:-0.1s] h-3" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-red-200">
+                          {voiceTarget === 'title' ? 'Dettatura Titolo' : 'Dettatura Testo'} in corso (Italiano)
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-red-500/30 text-red-300 font-mono font-bold tracking-wider">
+                          REC
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 italic truncate mt-0.5">
+                        {interimVoiceText ? `"${interimVoiceText}"` : 'Parla al microfono, le parole vengono trascritte in tempo reale...'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopVoiceDictation}
+                    className="px-3 py-1.5 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-lg text-xs font-bold shadow transition-colors shrink-0 cursor-pointer"
+                  >
+                    Fine
+                  </button>
+                </div>
+              )}
+
+              {/* Voice Error notice */}
+              {voiceError && (
+                <div className="mb-2 p-3 bg-slate-950 border border-amber-500/40 rounded-xl text-xs text-amber-300 flex items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <MicOff className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>{voiceError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceError(null)}
+                    className="text-slate-400 hover:text-white cursor-pointer ml-2"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               <textarea
+                ref={noteContentTextareaRef}
                 rows={4}
-                placeholder="Scrivi qui osservazioni, numeri, misure, dettagli tecnici o anomalie riscontrate..."
+                placeholder="Scrivi o detta qui osservazioni, numeri, misure, dettagli tecnici o anomalie riscontrate..."
                 value={noteContent}
                 onChange={(e) => setNoteContent(e.target.value)}
                 className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 leading-relaxed font-sans"
@@ -878,6 +1223,7 @@ export function UtilityView() {
               <button
                 type="button"
                 onClick={() => {
+                  stopVoiceDictation();
                   setIsComposing(false);
                   setNotePhotos([]);
                 }}
