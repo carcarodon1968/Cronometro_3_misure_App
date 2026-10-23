@@ -665,6 +665,10 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void startListening(final String lang) {
+            startListeningInternal(lang, false);
+        }
+
+        private void startListeningInternal(final String lang, final boolean isAutoRetry) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -709,6 +713,22 @@ public class MainActivity extends BridgeActivity {
                             @Override
                             public void onError(int error) {
                                 isListening = false;
+                                // Error 11 is ERROR_SERVER_DISCONNECTED: auto-retry once seamlessly without showing error to user
+                                if (error == 11 && !isAutoRetry) {
+                                    try {
+                                        if (speechRecognizer != null) {
+                                            speechRecognizer.destroy();
+                                            speechRecognizer = null;
+                                        }
+                                    } catch (Exception ignored) {}
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            startListeningInternal(lang, true);
+                                        }
+                                    });
+                                    return;
+                                }
                                 dispatchSpeechEvent("error", "code_" + error, "");
                             }
                             @Override

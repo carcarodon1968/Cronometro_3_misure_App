@@ -378,18 +378,30 @@ export function UtilityView() {
       });
   }, [notes, selectedCategory, notesSearch]);
 
-  // Helper to format spoken Italian punctuation ("punto", "virgola", "due punti", "a capo", etc.)
+  // Helper to format spoken Italian punctuation ("punto", "virgola", "due punti", "vai a capo", etc.)
   const formatSpokenText = (raw: string): string => {
     let s = raw;
+
+    // Line breaks with punctuation
+    s = s.replace(/\b(punto\s+e\s+(?:vai\s+)?a\s+capo|punto\s+a\s+capo)\b/gi, '.\n');
+    s = s.replace(/\b(virgola\s+e\s+(?:vai\s+)?a\s+capo|virgola\s+a\s+capo)\b/gi, ',\n');
+
+    // Line break commands
+    s = s.replace(/\b(?:vai\s+a\s+capo|va\s+a\s+capo|andare\s+a\s+capo|a\s+capo|nuova\s+riga|nuovo\s+paragrafo)\b/gi, '\n');
+
+    // Standard Italian punctuation
     s = s.replace(/\bvirgola\b/gi, ',');
-    s = s.replace(/\bpunto e virgola\b/gi, ';');
-    s = s.replace(/\bdue punti\b/gi, ':');
-    s = s.replace(/\bpunto interrogativo\b/gi, '?');
-    s = s.replace(/\bpunto esclamativo\b/gi, '!');
+    s = s.replace(/\bpunto\s+e\s+virgola\b/gi, ';');
+    s = s.replace(/\bdue\s+punti\b/gi, ':');
+    s = s.replace(/\bpunto\s+interrogativo\b/gi, '?');
+    s = s.replace(/\bpunto\s+esclamativo\b/gi, '!');
+    s = s.replace(/\btrattino\b/gi, '-');
     s = s.replace(/\bpunto\b/gi, '.');
-    s = s.replace(/\ba capo\b/gi, '\n');
-    s = s.replace(/\bnuova riga\b/gi, '\n');
-    s = s.replace(/\s+([,.:;?!])/g, '$1');
+
+    // Spacing cleanup
+    s = s.replace(/[ \t]+([,.:;?!])/g, '$1');
+    s = s.replace(/[ \t]+\n/g, '\n');
+    s = s.replace(/\n[ \t]+/g, '\n');
     return s;
   };
 
@@ -425,38 +437,79 @@ export function UtilityView() {
   };
 
   const appendSpokenText = (spoken: string, target: 'content' | 'title') => {
-    const formatted = formatSpokenText(spoken.trim());
+    let formatted = formatSpokenText(spoken);
     if (!formatted) return;
 
+    // Handle purely newline command (e.g. user said "vai a capo" by itself)
+    if (formatted.replace(/\s/g, '').length === 0 && formatted.includes('\n')) {
+      if (target === 'content') {
+        setNoteContent((prev) => (prev ? prev.replace(/[ \t]+$/, '') + '\n' : ''));
+      }
+      return;
+    }
+
     if (target === 'title') {
+      // For title, replace any newlines with space and apply stripOverlap
+      const cleanTitleFormatted = formatted.replace(/\n+/g, ' ').trim();
+      if (!cleanTitleFormatted) return;
       setNoteTitle((prev) => {
         const cleanPrev = prev.trim();
         if (!cleanPrev) {
-          return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+          return cleanTitleFormatted.charAt(0).toUpperCase() + cleanTitleFormatted.slice(1);
         }
-        const delta = stripOverlap(cleanPrev, formatted);
+        const delta = stripOverlap(cleanPrev, cleanTitleFormatted);
         if (!delta) return cleanPrev;
         return `${cleanPrev} ${delta}`;
       });
     } else {
       setNoteContent((prev) => {
-        const cleanPrev = prev.trim();
+        // Strip trailing horizontal spaces only, keep intentional newlines
+        const cleanPrev = prev ? prev.replace(/[ \t]+$/, '') : '';
         if (!cleanPrev) {
-          return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+          const capText = formatted.trim().replace(/(^|\n)(\s*)([a-zàèéìòù])/g, (_, p1, p2, p3) => p1 + p2 + p3.toUpperCase());
+          return capText + (formatted.endsWith('\n') ? '\n' : '');
         }
-        const delta = stripOverlap(cleanPrev, formatted);
-        if (!delta) return cleanPrev;
 
+        const hadLeadingNewline = formatted.startsWith('\n');
+        const hadTrailingNewline = formatted.endsWith('\n');
+
+        let cleanFormatted = formatted.trim();
+        // Avoid double punctuation if previous ended with punctuation and incoming starts with punctuation
+        if (
+          (cleanPrev.endsWith('.') || cleanPrev.endsWith(',')) &&
+          (cleanFormatted.startsWith('.') || cleanFormatted.startsWith(','))
+        ) {
+          cleanFormatted = cleanFormatted.slice(1).trim();
+        }
+
+        const delta = stripOverlap(cleanPrev, cleanFormatted);
+        if (!delta) {
+          if ((hadLeadingNewline || hadTrailingNewline) && !cleanPrev.endsWith('\n')) {
+            return cleanPrev + '\n';
+          }
+          return cleanPrev;
+        }
+
+        const shouldStartOnNewline = hadLeadingNewline || cleanPrev.endsWith('\n');
         const endsWithPunctuationOrNewline =
           cleanPrev.endsWith('.') ||
           cleanPrev.endsWith('?') ||
           cleanPrev.endsWith('!') ||
           cleanPrev.endsWith('\n');
-        const separator = cleanPrev.endsWith('\n') ? '' : ' ';
-        const textToAppend = endsWithPunctuationOrNewline
-          ? delta.charAt(0).toUpperCase() + delta.slice(1)
+
+        const separator = shouldStartOnNewline
+          ? (cleanPrev.endsWith('\n') ? '' : '\n')
+          : (cleanPrev ? ' ' : '');
+
+        const capitalizedDelta = (endsWithPunctuationOrNewline || shouldStartOnNewline)
+          ? delta.replace(/(^|\n)(\s*)([a-zàèéìòù])/g, (_, p1, p2, p3) => p1 + p2 + p3.toUpperCase())
           : delta;
-        return `${cleanPrev}${separator}${textToAppend}`;
+
+        let result = `${cleanPrev}${separator}${capitalizedDelta}`;
+        if (hadTrailingNewline && !result.endsWith('\n')) {
+          result += '\n';
+        }
+        return result;
       });
     }
   };
@@ -487,7 +540,16 @@ export function UtilityView() {
         setInterimVoiceText('');
         if (error === 'permission_denied') {
           setVoiceError("Permesso microfono non concesso. Abilita l'accesso al microfono per l'app.");
-        } else if (error && error !== 'code_7') {
+        } else if (error === 'code_11') {
+          // If native Android code_11 (ERROR_SERVER_DISCONNECTED) occurs, auto-reconnect silently
+          if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
+            setTimeout(() => {
+              try {
+                window.AndroidSpeech.startListening('it-IT');
+              } catch {}
+            }, 100);
+          }
+        } else if (error && error !== 'code_7' && error !== 'code_11') {
           setVoiceError(`Microfono: ${error}`);
         }
       }
