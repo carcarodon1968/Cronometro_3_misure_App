@@ -44,6 +44,9 @@ if (fs.existsSync(manifestPath)) {
       additions += `    ${entry}\n`;
     }
   }
+  if (!manifest.includes("android.speech.RecognitionService")) {
+    additions += `    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" />\n        </intent>\n    </queries>\n`;
+  }
   if (additions) {
     manifest = manifest.replace("</manifest>", `${additions}</manifest>`);
     fs.writeFileSync(manifestPath, manifest);
@@ -88,8 +91,6 @@ import android.view.Gravity;
 import android.view.WindowManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
-import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -105,6 +106,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     private File pendingApkFile = null;
@@ -158,21 +160,12 @@ public class MainActivity extends BridgeActivity {
             webView.addJavascriptInterface(new ApkUpdaterBridge(), "AndroidApkUpdater");
             webView.addJavascriptInterface(torchBridgeInstance, "AndroidTorch");
             webView.addJavascriptInterface(speechBridgeInstance, "AndroidSpeech");
-            webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                    try {
-                        request.grant(request.getResources());
-                    } catch (Exception ignored) {}
-                }
-            });
             webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
                     startNativeApkDownload(url, "Cronometro_3_misure_update.apk");
                 }
             });
-            webView.reload();
         }
     }
 
@@ -226,6 +219,11 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        try {
+            if (speechBridgeInstance != null && speechBridgeInstance.isListening()) {
+                speechBridgeInstance.stopListening();
+            }
+        } catch (Exception ignored) {}
         super.onPause();
     }
 
@@ -234,6 +232,9 @@ public class MainActivity extends BridgeActivity {
         try {
             if (torchBridgeInstance != null && torchBridgeInstance.isTorchOn()) {
                 torchBridgeInstance.setTorch(false);
+            }
+            if (speechBridgeInstance != null) {
+                speechBridgeInstance.destroy();
             }
         } catch (Exception ignored) {}
         super.onDestroy();
@@ -324,13 +325,13 @@ public class MainActivity extends BridgeActivity {
             public void run() {
                 try {
                     if (getBridge() == null || getBridge().getWebView() == null) return;
-                    org.json.JSONObject detail = new org.json.JSONObject();
+                    JSONObject detail = new JSONObject();
                     detail.put("status", status);
                     detail.put("percent", percent);
                     detail.put("downloadedBytes", downloadedBytes);
                     detail.put("totalBytes", totalBytes);
                     detail.put("message", message == null ? "" : message);
-                    String js = "window.dispatchEvent(new CustomEvent(\\"apk-download-progress\\", { detail: " + detail.toString() + " }));";
+                    String js = "window.dispatchEvent(new CustomEvent('apk-download-progress', { detail: " + detail.toString() + " }));";
                     getBridge().getWebView().evaluateJavascript(js, null);
                 } catch (Exception ignored) {}
             }
@@ -638,9 +639,23 @@ public class MainActivity extends BridgeActivity {
         private SpeechRecognizer speechRecognizer = null;
         private boolean isListening = false;
 
+        public void destroy() {
+            try {
+                if (speechRecognizer != null) {
+                    speechRecognizer.destroy();
+                    speechRecognizer = null;
+                }
+            } catch (Exception ignored) {}
+            isListening = false;
+        }
+
         @JavascriptInterface
         public boolean isAvailable() {
-            return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
+            try {
+                return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
+            } catch (Exception e) {
+                return false;
+            }
         }
 
         @JavascriptInterface
@@ -717,7 +732,7 @@ public class MainActivity extends BridgeActivity {
                         speechRecognizer.startListening(intent);
                     } catch (Exception e) {
                         isListening = false;
-                        dispatchSpeechEvent("error", e.getMessage(), "");
+                        dispatchSpeechEvent("error", e.getMessage() != null ? e.getMessage() : "start_failed", "");
                     }
                 }
             });
@@ -740,19 +755,20 @@ public class MainActivity extends BridgeActivity {
         }
 
         private void dispatchSpeechEvent(final String type, final String error, final String text) {
-            if (getBridge() != null && getBridge().getWebView() != null) {
-                getBridge().getWebView().post(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            String safeText = text != null ? text.replace("\\\\", "\\\\\\\\").replace("\"", "\\\\\"").replace("\n", " ") : "";
-                            String safeError = error != null ? error.replace("\\\\", "\\\\\\\\").replace("\"", "\\\\\"") : "";
-                            String js = "window.dispatchEvent(new CustomEvent('androidSpeechEvent', { detail: { type: '" + type + "', error: '" + safeError + "', text: '" + safeText + "' } }));";
-                            getBridge().getWebView().evaluateJavascript(js, null);
-                        } catch (Exception ignored) {}
-                    }
-                });
-            }
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (getBridge() == null || getBridge().getWebView() == null) return;
+                        JSONObject detail = new JSONObject();
+                        detail.put("type", type != null ? type : "");
+                        detail.put("error", error != null ? error : "");
+                        detail.put("text", text != null ? text : "");
+                        String js = "window.dispatchEvent(new CustomEvent('androidSpeechEvent', { detail: " + detail.toString() + " }));";
+                        getBridge().getWebView().evaluateJavascript(js, null);
+                    } catch (Exception ignored) {}
+                }
+            });
         }
     }
 }
