@@ -46,7 +46,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
   // All distinct categories present in recorded sessions or defaults
   const categoriesList = useMemo(() => {
-    const defaultCats = ['Diga Sud', 'Diga Nord', 'Flusso'];
+    const defaultCats = ['Diga Sud', 'Diga Nord', 'Mezzofondo', 'Varie'];
     const set = new Set<string>(defaultCats);
     sessions.forEach((s) => {
       if (s.category && s.category.trim()) set.add(s.category.trim());
@@ -69,7 +69,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           Nessun dato statistico disponibile
         </h2>
         <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-          Registra almeno una sessione con il cronometro a 3 campi per sbloccare l&apos;analisi delle perdite per ciascuna categoria (Diga Sud, Diga Nord, Flusso) con i rispettivi grafici a barre ed esportazione in PDF lineare.
+          Registra almeno una sessione con il cronometro a 3 campi per sbloccare l&apos;analisi delle perdite per ciascuna categoria (Diga Sud, Diga Nord, Mezzofondo, Varie) con i rispettivi grafici a barre ed esportazione in PDF lineare.
         </p>
         <button
           onClick={onNavigateToChrono}
@@ -125,13 +125,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           Analisi Medie e Perdite nel Tempo
         </h2>
         <p className="text-xs text-slate-400 max-w-lg">
-          Grafico a barre dedicato per ciascuna perdita (Diga Sud, Diga Nord, Flusso) con pulsante di esportazione in PDF con regressione lineare per monitorare l'evoluzione nel tempo.
+          Grafico a barre dedicato per ciascuna categoria (Diga Sud, Diga Nord, Mezzofondo, Varie) con pulsante di esportazione in PDF con regressione lineare per monitorare l'evoluzione nel tempo.
         </p>
 
         {/* Filter Chips - Singola Scelta */}
         <div className="flex items-center justify-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto max-w-full">
           {categoriesList.map((cat) => {
-            const count = sessions.filter((s) => (s.category || 'Flusso') === cat).length;
+            const count = sessions.filter((s) => (s.category || 'Varie') === cat).length;
             const isSelected = selectedCategory === cat;
             return (
               <button
@@ -184,7 +184,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         <div className="space-y-6">
           {displayedCategories.map((catName) => {
             // Sessions for this specific category
-            const catSessions = sessions.filter((s) => (s.category || 'Flusso') === catName);
+            const catSessions = sessions.filter((s) => (s.category || 'Varie') === catName);
 
             if (catSessions.length === 0) return null;
 

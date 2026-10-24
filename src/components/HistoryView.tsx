@@ -78,7 +78,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       'Tutte',
       'Diga Sud',
       'Diga Nord',
-      'Flusso',
+      'Mezzofondo',
+      'Varie',
     ]);
     sessions.forEach((s) => {
       if (s.category) set.add(s.category);
@@ -918,8 +919,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                                         <option value="Diga Nord">
                                                           Diga Nord
                                                         </option>
-                                                        <option value="Flusso">
-                                                          Flusso
+                                                        <option value="Mezzofondo">
+                                                          Mezzofondo
+                                                        </option>
+                                                        <option value="Varie">
+                                                          Varie
                                                         </option>
                                                       </select>
                                                       <input

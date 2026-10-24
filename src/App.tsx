@@ -678,7 +678,7 @@ export default function App() {
       {
         id: 'demo_flusso_1',
         label: 'Misurazione Portata Principale',
-        category: 'Flusso',
+        category: 'Varie',
         notes: 'Recipiente tarato da 10 litri',
         containerAmount: 10,
         flowRatePerSec: 10 / 5.0,
@@ -897,7 +897,7 @@ export default function App() {
               className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
             >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
-                {/* 1. Categoria (Diga Sud, Diga Nord, Flusso) */}
+                {/* 1. Categoria (Diga Sud, Diga Nord, Mezzofondo, Varie) */}
                 <div>
                   <label
                     htmlFor="select-categoria"
@@ -913,7 +913,8 @@ export default function App() {
                   >
                     <option value="Diga Sud">Diga Sud</option>
                     <option value="Diga Nord">Diga Nord</option>
-                    <option value="Flusso">Flusso</option>
+                    <option value="Mezzofondo">Mezzofondo</option>
+                    <option value="Varie">Varie</option>
                   </select>
                 </div>
 
