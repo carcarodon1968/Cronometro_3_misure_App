@@ -21,6 +21,7 @@ import {
   Save,
   Sparkles,
   Square,
+  StickyNote,
   Trash2,
   Wrench,
 } from 'lucide-react';
@@ -58,6 +59,7 @@ import { HistoryView } from './components/HistoryView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { AndroidCodeView } from './components/AndroidCodeView';
 import { UtilityView } from './components/UtilityView';
+import { MeasureNoteModal } from './components/MeasureNoteModal';
 import { useScreenWakeLock } from './hooks/useScreenWakeLock';
 
 type ActiveTab = 'chrono' | 'history' | 'analytics' | 'android_code' | 'utility';
@@ -111,6 +113,9 @@ export default function App() {
   // Cloud Sync State
   const [cloudUser, setCloudUser] = useState<CloudSyncProfile | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+
+  // Measure note modal state for notes connected to database
+  const [isMeasureNoteModalOpen, setIsMeasureNoteModalOpen] = useState<boolean>(false);
 
   // Refs
   const rafRef = useRef<number | null>(null);
@@ -298,7 +303,8 @@ export default function App() {
       t2: number | null,
       t3: number | null,
       existingId?: string | null,
-      isAutoSaved?: boolean
+      isAutoSaved?: boolean,
+      overrideNotes?: string
     ) => {
       const containerVal = parseContainerAmount(containerInput);
       const stats = computeStatsFromTimes(t1, t2, t3, containerVal);
@@ -308,11 +314,14 @@ export default function App() {
       const finalLabel =
         sessionLabel.trim() || `Misurazione #${defaultNumber}`;
 
+      const finalNotes =
+        overrideNotes !== undefined ? overrideNotes.trim() : sessionNotes.trim();
+
       const record: MeasurementRecord = {
         id: existingId || `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         label: finalLabel,
         category: sessionCategory,
-        notes: sessionNotes.trim(),
+        notes: finalNotes,
         containerAmount: containerVal,
         flowRatePerSec: stats.currentFlowPerSec,
         flowRatePerMin: stats.currentFlowPerMin,
@@ -342,6 +351,7 @@ export default function App() {
         containerAmount: containerVal,
       });
       resetMeasurementCounts();
+      setLastSavedId(record.id);
 
       const updatedList = await saveSessionToDB(record);
       setSessions(updatedList);
@@ -398,12 +408,22 @@ export default function App() {
     // Clear retained values in "Media dei tempi registrati" when starting the next measurement session
     setRetainedStatsTimes(null);
 
-    // If all 3 fields are already filled and we are starting a brand-new cycle on Slot 1, clear for the new session
-    if (time1 !== null && time2 !== null && time3 !== null && activeSlot === 1) {
+    // Starting a new measurement session: if a previous session was saved in DB or retained stats are present,
+    // clear lastSavedId and sessionNotes so the new session gets its own fresh record ID and notes in the database!
+    if (
+      lastSavedId !== null ||
+      retainedStatsTimes !== null ||
+      (time1 !== null && time2 !== null && time3 !== null && activeSlot === 1)
+    ) {
       setTime1(null);
       setTime2(null);
       setTime3(null);
       setLastSavedId(null);
+      setSessionNotes('');
+      setActiveSlot(1);
+      if (sessionLabel.trim().startsWith('Misurazione #')) {
+        setSessionLabel('');
+      }
     }
 
     setElapsedMs(0);
@@ -419,7 +439,19 @@ export default function App() {
     };
 
     rafRef.current = requestAnimationFrame(tick);
-  }, [activeSlot, containerInput, isRunning, pendingTimeMs, showToast, time1, time2, time3]);
+  }, [
+    activeSlot,
+    containerInput,
+    isRunning,
+    lastSavedId,
+    pendingTimeMs,
+    retainedStatsTimes,
+    sessionLabel,
+    showToast,
+    time1,
+    time2,
+    time3,
+  ]);
 
   // Stop the stopwatch -> hold measured time in pendingTimeMs waiting for user validation (or single-measurement reset)
   const handleStop = useCallback(() => {
@@ -523,12 +555,16 @@ export default function App() {
     }
 
     // Block "Azzera Tutto" until the measurements are saved in the database
-    if (lastSavedId === null) {
+    if (lastSavedId === null && (time1 !== null || time2 !== null || time3 !== null)) {
       return;
     }
 
     resetMeasurementCounts();
-  }, [activeSlot, isRunning, lastSavedId, pendingTimeMs, resetMeasurementCounts, showToast]);
+    setLastSavedId(null);
+    setSessionNotes('');
+    setRetainedStatsTimes(null);
+    showToast('Cronometro azzerato per una nuova misurazione');
+  }, [activeSlot, isRunning, lastSavedId, pendingTimeMs, resetMeasurementCounts, showToast, time1, time2, time3]);
 
   // Keyboard shortcuts (Space = Start/Stop, Enter = Validate, R = Reset) when not typing in an input
   useEffect(() => {
@@ -576,6 +612,35 @@ export default function App() {
     setTime2(nextT2);
     setTime3(nextT3);
     setEditingSlot(null);
+  };
+
+  // Handler to save/update the note connected to this measurement in the database (Storico)
+  const handleSaveLiveMeasureNote = async (newNote: string) => {
+    const trimmed = newNote.trim();
+    setSessionNotes(trimmed);
+
+    // 1. If this session was already saved into the database, update it directly:
+    if (lastSavedId) {
+      const existing = sessions.find((s) => s.id === lastSavedId);
+      if (existing) {
+        const updatedRecord: MeasurementRecord = {
+          ...existing,
+          notes: trimmed,
+        };
+        const updatedList = await saveSessionToDB(updatedRecord);
+        setSessions(updatedList);
+        if (cloudUser) {
+          saveSessionToCloud(updatedRecord).catch(() => {});
+        }
+        showToast('Nota salvata e collegata alla misura nel Database Storico!');
+        return;
+      }
+    }
+
+    // 2. If the session has not yet been saved in the DB:
+    // Store in sessionNotes so that when the measurement is saved (at the 3° stop auto-save
+    // or when clicking "Salva nel DB Locale"), the note is saved directly into the database!
+    showToast('Nota collegata: verrà salvata nel Database assieme alla misura!');
   };
 
   // Load a saved session from history back into the 3 fields
@@ -1012,20 +1077,18 @@ export default function App() {
 
                     <button
                       onClick={handleReset}
-                      disabled={
-                        isRunning || pendingTimeMs !== null
-                          ? false
-                          : lastSavedId === null ||
-                            (time1 === null && time2 === null && time3 === null)
-                      }
+                      disabled={!isRunning && pendingTimeMs === null}
                       className="min-h-[54px] px-4 py-3.5 rounded-xl border border-slate-700 hover:bg-slate-800 disabled:bg-slate-800/60 disabled:text-slate-500 disabled:border-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                      title={
+                        isRunning || pendingTimeMs !== null
+                          ? `Azzera ${activeSlot}° dato`
+                          : undefined
+                      }
                     >
                       <RotateCcw className="w-4 h-4 shrink-0" />
-                      <span>
-                        {isRunning || pendingTimeMs !== null
-                          ? `Azzera ${activeSlot}°`
-                          : 'Azzera Tutto'}
-                      </span>
+                      {(isRunning || pendingTimeMs !== null) && (
+                        <span>Azzera {activeSlot}°</span>
+                      )}
                     </button>
                   </div>
 
@@ -1205,6 +1268,35 @@ export default function App() {
                     </span>
                   </button>
                 </div>
+
+                {/* PULSANTE AGGIUNGI / MODIFICA NOTA MISURA (COLLEGATA NEL DATABASE STORICO) */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMeasureNoteModalOpen(true)}
+                    className="w-full min-h-[50px] px-6 py-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-amber-400 hover:text-amber-300 border border-amber-500/40 hover:border-amber-400 text-sm font-semibold transition-all flex items-center justify-center gap-2.5 shadow-sm cursor-pointer whitespace-nowrap group"
+                    title="Aggiungi o modifica una nota collegata a questa misura salvata nel database dello storico"
+                  >
+                    <StickyNote className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+                    <span>Aggiungi Nota alla Misura</span>
+                  </button>
+
+                  {sessionNotes.trim() && (
+                    <div className="mt-2 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                        <span className="font-bold text-amber-400 shrink-0">Nota Misura:</span>
+                        <span className="truncate italic">{sessionNotes}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsMeasureNoteModalOpen(true)}
+                        className="text-[11px] font-semibold text-amber-300 hover:text-white underline cursor-pointer shrink-0 ml-1"
+                      >
+                        Modifica
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1267,6 +1359,28 @@ export default function App() {
         {activeTab === 'android_code' && <AndroidCodeView />}
         {activeTab === 'utility' && <UtilityView />}
       </main>
+
+      {/* Modal for editing note connected to measurement in database */}
+      <MeasureNoteModal
+        isOpen={isMeasureNoteModalOpen}
+        onClose={() => setIsMeasureNoteModalOpen(false)}
+        record={lastSavedId ? sessions.find((s) => s.id === lastSavedId) || null : null}
+        liveContext={{
+          category: sessionCategory,
+          label: sessionLabel.trim() || `Misurazione #${sessions.length + 1}`,
+          currentAverage: panelStats.currentAverage,
+          flowPerSec: panelStats.currentFlowPerSec,
+          count: panelStats.count,
+          containerAmount: panelContainerAmount,
+          isSavedInDB: lastSavedId !== null,
+        }}
+        initialNote={
+          lastSavedId
+            ? (sessions.find((s) => s.id === lastSavedId)?.notes || sessionNotes)
+            : sessionNotes
+        }
+        onSaveNote={handleSaveLiveMeasureNote}
+      />
 
       {/* Mobile Fixed Bottom Navigation Bar (Ergonomic Thumb Zone, <15% viewport height) */}
       <nav

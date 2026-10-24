@@ -30,4 +30,22 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+
+  .note-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 158, 11, 0.45) transparent;
+  }
+  .note-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .note-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .note-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(245, 158, 11, 0.4);
+    border-radius: 9999px;
+  }
+  .note-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(245, 158, 11, 0.7);
+  }
 }

@@ -80,7 +80,12 @@ const CATEGORY_COLORS: Record<NoteItem['category'], { bg: string; text: string; 
 
 const STORAGE_KEY_NOTES = 'cronometro3_utility_notes_v1';
 
-export function UtilityView() {
+export interface UtilityViewProps {
+  initialOpenNote?: NoteItem | null;
+  onClearInitialOpenNote?: () => void;
+}
+
+export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: UtilityViewProps = {}) {
   // ---------- NOTES STATE ----------
   const [notes, setNotes] = useState<NoteItem[]>(() => {
     try {
@@ -113,6 +118,29 @@ export function UtilityView() {
   const [notePinned, setNotePinned] = useState<boolean>(false);
   const [notePhotos, setNotePhotos] = useState<string[]>([]);
   const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
+
+  // If navigated from Cronometro with a new linked note, open it immediately in the editor
+  useEffect(() => {
+    if (initialOpenNote) {
+      setNotes((prev) => {
+        const exists = prev.some((n) => n.id === initialOpenNote.id);
+        if (exists) {
+          return prev.map((n) => (n.id === initialOpenNote.id ? initialOpenNote : n));
+        }
+        return [initialOpenNote, ...prev];
+      });
+      setEditingNoteId(initialOpenNote.id);
+      setNoteTitle(initialOpenNote.title);
+      setNoteContent(initialOpenNote.content);
+      setNoteCategory(initialOpenNote.category);
+      setNotePinned(initialOpenNote.pinned);
+      setNotePhotos(initialOpenNote.photos || []);
+      setIsComposing(true);
+      if (onClearInitialOpenNote) {
+        onClearInitialOpenNote();
+      }
+    }
+  }, [initialOpenNote, onClearInitialOpenNote]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
@@ -905,22 +933,10 @@ export function UtilityView() {
 
   return (
     <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 mb-20 md:mb-6 shadow-xl space-y-5">
-      {/* Top Header with title and quick action tools */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
-            <StickyNote className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-white">Utility & Blocco Note</h2>
-            <p className="text-xs text-slate-400">
-              Calcolatrice, livella a bolla, torcia flash LED e note con foto sul campo
-            </p>
-          </div>
-        </div>
-
+      {/* Quick action tools */}
+      <div className="flex items-center justify-center pb-4 border-b border-slate-800">
         {/* Quick Tools Bar: Calcolatrice + Livella a Bolla + Flash LED */}
-        <div className="flex items-center flex-wrap gap-2">
+        <div className="flex items-center justify-center flex-wrap gap-2">
           {/* 1. Tasto Calcolatrice */}
           <button
             onClick={() => {

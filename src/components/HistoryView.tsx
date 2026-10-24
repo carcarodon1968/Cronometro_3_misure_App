@@ -26,9 +26,11 @@ import {
   Trash2,
   Check,
   Edit3,
+  StickyNote,
   X,
 } from 'lucide-react';
 import type { CloudSyncProfile } from '../db/firebaseCloud';
+import { MeasureNoteModal } from './MeasureNoteModal';
 
 interface HistoryViewProps {
   sessions: MeasurementRecord[];
@@ -66,6 +68,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [editCategory, setEditCategory] = useState('');
   const [editContainer, setEditContainer] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [noteModalRecord, setNoteModalRecord] = useState<MeasurementRecord | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -990,14 +993,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                                           Scarto ±
                                                           {formatTimeParts(item.spread).full}
                                                         </span>
-                                                        {item.notes && (
-                                                          <>
-                                                            <span aria-hidden="true">·</span>
-                                                            <span className="text-slate-300 italic">
-                                                              {item.notes}
-                                                            </span>
-                                                          </>
-                                                        )}
                                                       </div>
                                                     </>
                                                   )}
@@ -1038,6 +1033,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                                       className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                                     >
                                                       <RotateCcw className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                      onClick={() => setNoteModalRecord(item)}
+                                                      title={
+                                                        item.notes
+                                                          ? "Visualizza o modifica nota della misura"
+                                                          : "Aggiungi nota a questa misura salvata nello storico"
+                                                      }
+                                                      className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
+                                                        item.notes
+                                                          ? "text-amber-400 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30"
+                                                          : "text-slate-400 hover:text-amber-300 hover:bg-slate-800"
+                                                      }`}
+                                                    >
+                                                      <StickyNote className="w-4 h-4" />
                                                     </button>
                                                     <button
                                                       onClick={() => startEditing(item)}
@@ -1123,6 +1133,47 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                                   </div>
                                                 </div>
                                               )}
+
+                                                {/* NOTA COLLEGATA ALLA MISURA NEL DATABASE (TENDINA SCORREVOLE A 3 RIGHE) */}
+                                                {item.notes ? (
+                                                  <div className="mt-3.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-100">
+                                                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-amber-500/15">
+                                                      <div className="flex items-center gap-1.5 text-amber-300 font-bold">
+                                                        <StickyNote className="w-4 h-4 text-amber-400 shrink-0" />
+                                                        <span>Nota Misura:</span>
+                                                      </div>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => setNoteModalRecord(item)}
+                                                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                                                        title="Modifica la nota di questa misura salvata nello storico"
+                                                      >
+                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                        <span>Modifica</span>
+                                                      </button>
+                                                    </div>
+                                                    <div className="mt-2 p-2 rounded-lg bg-slate-950/70 border border-amber-500/20 max-h-[4.75rem] overflow-y-auto note-scrollbar select-text">
+                                                      <p className="text-slate-200 text-xs leading-relaxed whitespace-pre-line break-words">
+                                                        {item.notes}
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                                                    <span className="text-xs text-slate-500 italic">
+                                                      Nessuna nota collegata
+                                                    </span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setNoteModalRecord(item)}
+                                                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                      title="Aggiungi una nota a questa misura salvata nello storico"
+                                                    >
+                                                      <StickyNote className="w-3.5 h-3.5" />
+                                                      <span>+ Aggiungi Nota</span>
+                                                    </button>
+                                                  </div>
+                                                )}
                                             </div>
                                           );
                                         })}
@@ -1179,6 +1230,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             )}
           </div>
         </div>
+      )}
+      {/* Modal for editing note connected to historical measurement */}
+      {noteModalRecord && (
+        <MeasureNoteModal
+          isOpen={Boolean(noteModalRecord)}
+          onClose={() => setNoteModalRecord(null)}
+          record={noteModalRecord}
+          initialNote={noteModalRecord.notes || ""}
+          onSaveNote={async (newNote) => {
+            const updated: MeasurementRecord = {
+              ...noteModalRecord,
+              notes: newNote,
+            };
+            await onUpdateSession(updated);
+            setNoteModalRecord(null);
+          }}
+        />
       )}
     </div>
   );
