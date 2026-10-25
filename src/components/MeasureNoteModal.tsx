@@ -51,6 +51,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
 
   const recognitionRef = useRef<any>(null);
   const isUserListeningRef = useRef<boolean>(false);
+  const lastFinalIndexRef = useRef<number>(-1);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Sync initialNote when modal opens
@@ -61,6 +62,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       setVoiceNotice(null);
       setIsVoiceListening(false);
       isUserListeningRef.current = false;
+      lastFinalIndexRef.current = -1;
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
@@ -103,18 +105,34 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
     return s;
   };
 
-  // Helper to strip repetitive overlapping speech chunks
+  // Helper to strip repetitive overlapping speech chunks (at phrase and word level)
   const stripOverlap = (existingText: string, incomingText: string): string => {
     const ex = existingText.trim();
     const inc = incomingText.trim();
     if (!ex) return inc;
     if (!inc) return '';
 
-    const cleanEx = ex.toLowerCase().replace(/[,.:;?!]+$/, '').trim();
-    const cleanInc = inc.toLowerCase().replace(/[,.:;?!]+$/, '').trim();
-    if (cleanEx.endsWith(cleanInc)) {
+    const exLower = ex.toLowerCase();
+    const incLower = inc.toLowerCase();
+
+    // If existing text already ends with the exact incoming string (ignoring punctuation), it is 100% duplicate
+    const cleanExLower = exLower.replace(/[,.:;?!]+$/, '').trim();
+    const cleanIncLower = incLower.replace(/[,.:;?!]+$/, '').trim();
+    if (cleanExLower.endsWith(cleanIncLower)) {
       return '';
     }
+
+    // Check if the beginning of incomingText overlaps with the end of existingText
+    // e.g. existing ends with "misura", incoming is "misura effettuata" -> returns "effettuata"
+    const incWords = inc.split(/\s+/);
+    for (let k = incWords.length; k >= 1; k--) {
+      const prefix = incWords.slice(0, k).join(' ').toLowerCase().replace(/[,.:;?!]+$/, '').trim();
+      if (prefix && cleanExLower.endsWith(prefix)) {
+        const remainder = incWords.slice(k).join(' ').trim();
+        return remainder;
+      }
+    }
+
     return inc;
   };
 
@@ -176,7 +194,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
     });
   };
 
-  // Android Speech Event Listener (for APK environment)
+  // Android Speech Event Listener (for APK environment with native SpeechBridge)
   useEffect(() => {
     const handleAndroidSpeech = (e: Event) => {
       const customEvent = e as CustomEvent<{ type: string; error?: string; text?: string }>;
@@ -188,28 +206,64 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       } else if (type === 'partial') {
         if (text) setInterimVoiceText(text);
       } else if (type === 'result') {
-        if (text) appendSpokenText(text);
+        if (text && text.trim()) {
+          appendSpokenText(text.trim());
+        }
         setInterimVoiceText('');
       } else if (type === 'end') {
-        setIsVoiceListening(false);
         setInterimVoiceText('');
+        // Seamless multi-sentence continuation in APK
+        if (isUserListeningRef.current) {
+          setTimeout(() => {
+            if (isUserListeningRef.current) {
+              try {
+                if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
+                  window.AndroidSpeech.startListening('it-IT');
+                }
+              } catch {}
+            }
+          }, 250);
+        } else {
+          setIsVoiceListening(false);
+        }
       } else if (type === 'error') {
-        setIsVoiceListening(false);
-        setInterimVoiceText('');
         if (error && error.includes('11')) {
           // code_11 is recognizer busy/transient in android
-          setVoiceNotice('Microfono pronto. Premi di nuovo per parlare.');
+          setVoiceNotice('Microfono pronto. Parla adesso...');
+          return;
         } else if (error === 'permission_denied') {
-          setVoiceNotice('Permesso microfono non concesso.');
+          isUserListeningRef.current = false;
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
+          setVoiceNotice('Permesso microfono non concesso nelle impostazioni Android.');
+        } else if (error && error.includes('code_7')) {
+          // No speech input in timeout - restart if still listening
+          if (isUserListeningRef.current) {
+            setTimeout(() => {
+              if (isUserListeningRef.current) {
+                try {
+                  window.AndroidSpeech?.startListening('it-IT');
+                } catch {}
+              }
+            }, 300);
+            return;
+          }
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
         } else {
+          isUserListeningRef.current = false;
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
           setVoiceNotice(`Microfono: ${error || 'errore temporaneo'}`);
         }
         setTimeout(() => setVoiceNotice(null), 4000);
       }
     };
 
+    window.addEventListener('androidSpeechEvent', handleAndroidSpeech);
     window.addEventListener('androidspeech', handleAndroidSpeech);
     return () => {
+      window.removeEventListener('androidSpeechEvent', handleAndroidSpeech);
       window.removeEventListener('androidspeech', handleAndroidSpeech);
     };
   }, []);
@@ -235,6 +289,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
     triggerHaptic();
     setVoiceNotice(null);
     setInterimVoiceText('');
+    lastFinalIndexRef.current = -1;
 
     // 1. Android APK native bridge if available
     if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
@@ -251,7 +306,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
     // 2. Standard Web Speech API
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
-      setVoiceNotice('Dettatura vocale non supportata da questo browser.');
+      setVoiceNotice('Dettatura vocale non supportata da questo browser. Usa il microfono sulla tastiera virtuale (Gboard).');
       setTimeout(() => setVoiceNotice(null), 4000);
       return;
     }
@@ -265,35 +320,44 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
 
       const rec = new SpeechRec();
       rec.lang = 'it-IT';
-      rec.continuous = true;
+      rec.continuous = false; // continuous: false avoids Chrome cumulative duplication
       rec.interimResults = true;
       rec.maxAlternatives = 1;
 
       rec.onstart = () => {
         setIsVoiceListening(true);
         setVoiceNotice(null);
+        lastFinalIndexRef.current = -1;
       };
 
       rec.onresult = (event: any) => {
         let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
-          const transcript = res[0]?.transcript || '';
           if (res.isFinal) {
-            appendSpokenText(transcript);
+            if (i > lastFinalIndexRef.current) {
+              lastFinalIndexRef.current = i;
+              const transcript = res[0]?.transcript || '';
+              if (transcript.trim()) {
+                appendSpokenText(transcript);
+              }
+            }
           } else {
-            interim += transcript;
+            interim += res[0]?.transcript || '';
           }
         }
-        setInterimVoiceText(interim);
+        setInterimVoiceText(interim.trim());
       };
 
       rec.onerror = (event: any) => {
         if (event.error === 'no-speech') return;
+        isUserListeningRef.current = false;
         setIsVoiceListening(false);
         setInterimVoiceText('');
-        if (event.error === 'not-allowed') {
-          setVoiceNotice('Permesso microfono negato.');
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setVoiceNotice('Permesso microfono negato nel browser.');
+        } else if (event.error === 'network') {
+          setVoiceNotice('Microfono: connessione di rete assente.');
         } else {
           setVoiceNotice(`Microfono: ${event.error}`);
         }
@@ -301,15 +365,24 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       };
 
       rec.onend = () => {
+        setInterimVoiceText('');
         if (isUserListeningRef.current) {
-          try {
-            rec.start();
-          } catch {
-            setIsVoiceListening(false);
-          }
+          lastFinalIndexRef.current = -1;
+          setTimeout(() => {
+            if (isUserListeningRef.current) {
+              try {
+                rec.start();
+              } catch {
+                try {
+                  startVoiceListening();
+                } catch {
+                  setIsVoiceListening(false);
+                }
+              }
+            }
+          }, 150);
         } else {
           setIsVoiceListening(false);
-          setInterimVoiceText('');
         }
       };
 
@@ -317,6 +390,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       isUserListeningRef.current = true;
       rec.start();
     } catch (err) {
+      isUserListeningRef.current = false;
       setIsVoiceListening(false);
       setVoiceNotice('Impossibile avviare il microfono.');
       setTimeout(() => setVoiceNotice(null), 4000);
@@ -331,15 +405,6 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
     }
   };
 
-  const handleInsertQuickTag = (tag: string) => {
-    triggerHaptic();
-    setNoteText((prev) => {
-      const clean = prev.trim();
-      if (!clean) return tag;
-      if (clean.includes(tag)) return clean;
-      return `${clean}\n• ${tag}`;
-    });
-  };
 
   const handleSave = async () => {
     triggerHaptic();
@@ -372,14 +437,6 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
   const flowVal = record ? (record.flowRatePerSec ?? null) : liveContext?.flowPerSec ?? null;
   const containerVal = record ? record.containerAmount : liveContext?.containerAmount ?? null;
 
-  const quickTags = [
-    'Stramazzo pulito',
-    'Livello idrometrico stabile',
-    'Sedimenti presenti',
-    'Turbolenza visibile',
-    'Perdita / trafilamento',
-    'Misura ripetuta e verificata',
-  ];
 
   return (
     <div
@@ -539,24 +596,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
             )}
           </div>
 
-          {/* Quick Field Tag Chips */}
-          <div className="pt-2">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Inserimento rapido annotazioni:
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {quickTags.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => handleInsertQuickTag(tag)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-slate-300 hover:text-white border border-slate-700/60 text-xs transition-colors cursor-pointer"
-                >
-                  + {tag}
-                </button>
-              ))}
-            </div>
-          </div>
+
         </div>
 
         {/* Modal Footer */}

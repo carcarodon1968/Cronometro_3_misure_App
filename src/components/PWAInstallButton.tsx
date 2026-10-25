@@ -19,9 +19,9 @@ const REMOTE_VERSION_URL =
 const GITHUB_RELEASES_API =
   'https://api.github.com/repos/carcarodon1968/Cronometro_3_misure_App/releases';
 const DEFAULT_APK_URL =
-  'https://carcarodon1968.github.io/Cronometro_3_misure_App/Cronometro_3_misure_v.1.0.6.apk';
+  'https://carcarodon1968.github.io/Cronometro_3_misure_App/Cronometro_3_misure_v.1.0.7.apk';
 const DEFAULT_UPDATE_PAGE_URL =
-  'https://carcarodon1968.github.io/Cronometro_3_misure_App/update.html?v=1.0.6';
+  'https://carcarodon1968.github.io/Cronometro_3_misure_App/update.html?v=1.0.7';
 
 function normalizeVersion(v: string): string {
   return String(v || '')
@@ -145,7 +145,7 @@ export const AppUpdateBanner: React.FC = () => {
 
       // 1. Read local bundled version.json
       let currentLocal: VersionManifest = {
-        version: '1.0.6',
+        version: '1.0.7',
         buildNumber: 0,
         apkUrl: DEFAULT_APK_URL,
       };
@@ -186,7 +186,7 @@ export const AppUpdateBanner: React.FC = () => {
               );
               const highestRelease = sortedReleases[0];
               const tagVersion =
-                normalizeVersion(highestRelease?.tag_name || '') || '1.0.6';
+                normalizeVersion(highestRelease?.tag_name || '') || '1.0.7';
               const apkAsset = Array.isArray(highestRelease?.assets)
                 ? highestRelease.assets.find((a: { name?: string }) =>
                     String(a.name || '').endsWith('.apk')
@@ -280,8 +280,8 @@ export const AppUpdateBanner: React.FC = () => {
   const targetVersion = normalizeVersion(
     remoteInfo?.version ||
       (typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('v') || '1.0.6'
-        : '1.0.6')
+        ? new URLSearchParams(window.location.search).get('v') || '1.0.7'
+        : '1.0.7')
   );
   const directBinaryApkUrl =
     remoteInfo?.directApkUrl ||
@@ -390,7 +390,7 @@ export const AppUpdateBanner: React.FC = () => {
 
   const handleStartApkUpdate = () => {
     const updater = getAndroidApkUpdater();
-    const targetVersion = remoteInfo?.version || '1.0.6';
+    const targetVersion = remoteInfo?.version || '1.0.7';
     const fileName = `Cronometro_3_misure_v.${targetVersion}.apk`;
 
     if (updater && typeof updater.downloadAndInstall === 'function') {

@@ -38,7 +38,7 @@ jobs:
       - name: Read App Version from package.json
         id: pkg
         run: |
-          VERSION=$(node -p "require('./package.json').version || '1.0.6'")
+          VERSION=$(node -p "require('./package.json').version || '1.0.7'")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Fix package.json versions, Write version.json & Build Web App

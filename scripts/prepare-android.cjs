@@ -1,7 +1,7 @@
 const fs = require("fs");
 
 const verCode = process.env.VER_CODE || "101";
-const appVer = process.env.APP_VER || "1.0.6";
+const appVer = process.env.APP_VER || "1.0.7";
 
 let gradle = fs.readFileSync("android/app/build.gradle", "utf8");
 gradle = gradle.replace(/versionCode\s+\d+/, "versionCode " + verCode);
@@ -383,7 +383,7 @@ public class MainActivity extends BridgeActivity {
 
     private String extractVersionFromUrl(String rawUrl) {
         try {
-            if (rawUrl == null) return "1.0.6";
+            if (rawUrl == null) return "1.0.7";
             Uri u = Uri.parse(rawUrl);
             String qv = u.getQueryParameter("v");
             if (qv != null && !qv.trim().isEmpty()) {
@@ -394,7 +394,7 @@ public class MainActivity extends BridgeActivity {
                 return m.group(1);
             }
         } catch (Exception ignored) {}
-        return "1.0.6";
+        return "1.0.7";
     }
 
     private boolean isValidApkFile(File f) {
@@ -784,7 +784,7 @@ public class MainActivity extends BridgeActivity {
                         detail.put("type", type != null ? type : "");
                         detail.put("error", error != null ? error : "");
                         detail.put("text", text != null ? text : "");
-                        String js = "window.dispatchEvent(new CustomEvent('androidSpeechEvent', { detail: " + detail.toString() + " }));";
+                        String js = "window.dispatchEvent(new CustomEvent('androidSpeechEvent', { detail: " + detail.toString() + " })); window.dispatchEvent(new CustomEvent('androidspeech', { detail: " + detail.toString() + " }));";
                         getBridge().getWebView().evaluateJavascript(js, null);
                     } catch (Exception ignored) {}
                 }

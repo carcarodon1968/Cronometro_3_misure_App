@@ -1,7 +1,7 @@
 const fs = require("fs");
 
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const version = pkg.version || "1.0.6";
+const version = pkg.version || "1.0.7";
 const runNumber = Number(process.env.GITHUB_RUN_NUMBER) || 1;
 const repo = process.env.GITHUB_REPOSITORY || "carcarodon1968/Cronometro_3_misure_App";
 const sha = (process.env.GITHUB_SHA || "local000").slice(0, 7);
