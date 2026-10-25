@@ -13,6 +13,7 @@ import {
   Clock,
   Database,
   Edit3,
+  Flashlight,
   Folder,
   FolderOpen,
   History,
@@ -157,6 +158,113 @@ export default function App() {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3500);
   }, []);
+
+  // Flash LED State & Refs for Stopwatch illumination
+  const [isFlashOn, setIsFlashOn] = useState<boolean>(false);
+  const flashTrackRef = useRef<MediaStreamTrack | null>(null);
+  const flashStreamRef = useRef<MediaStream | null>(null);
+
+  // Clean up hardware flashlight on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.AndroidTorch) {
+        try {
+          if (window.AndroidTorch.isTorchOn()) {
+            window.AndroidTorch.setTorch(false);
+          }
+        } catch {}
+      }
+      if (flashTrackRef.current) {
+        try {
+          flashTrackRef.current.stop();
+        } catch {}
+        flashTrackRef.current = null;
+      }
+      if (flashStreamRef.current) {
+        try {
+          flashStreamRef.current.getTracks().forEach((t) => t.stop());
+        } catch {}
+        flashStreamRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleToggleFlashlight = useCallback(async () => {
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(15);
+      } catch {}
+    }
+
+    // 1. Android APK Native Bridge (CameraManager)
+    if (typeof window !== 'undefined' && window.AndroidTorch && window.AndroidTorch.isAvailable()) {
+      try {
+        const nextState = !isFlashOn;
+        const success = window.AndroidTorch.setTorch(nextState);
+        if (success) {
+          setIsFlashOn(nextState);
+          showToast(nextState ? 'Flash LED Acceso' : 'Flash LED Spento');
+          return;
+        }
+      } catch (err) {
+        console.warn('Native AndroidTorch failed, attempting WebRTC fallback:', err);
+      }
+    }
+
+    // Ensure native torch is turned off if was active
+    if (typeof window !== 'undefined' && window.AndroidTorch) {
+      try {
+        if (window.AndroidTorch.isTorchOn()) {
+          window.AndroidTorch.setTorch(false);
+        }
+      } catch {}
+    }
+
+    // 2. Web / Browser WebRTC Torch (Chrome PWA)
+    if (isFlashOn) {
+      try {
+        if (flashTrackRef.current) {
+          await (flashTrackRef.current as unknown as { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
+            advanced: [{ torch: false }],
+          });
+          flashTrackRef.current.stop();
+          flashTrackRef.current = null;
+        }
+        if (flashStreamRef.current) {
+          flashStreamRef.current.getTracks().forEach((t) => t.stop());
+          flashStreamRef.current = null;
+        }
+      } catch {}
+      setIsFlashOn(false);
+      showToast('Flash LED Spento');
+    } else {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showToast('Flash fotocamera non supportato da questo browser');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        });
+        const track = stream.getVideoTracks()[0];
+        const capabilities = (track.getCapabilities && (track.getCapabilities() as Record<string, unknown>)) || {};
+        if ('torch' in capabilities) {
+          await (track as unknown as { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
+            advanced: [{ torch: true }],
+          });
+          flashStreamRef.current = stream;
+          flashTrackRef.current = track;
+          setIsFlashOn(true);
+          showToast('Flash LED Acceso');
+        } else {
+          track.stop();
+          showToast('Flash hardware non disponibile su questo dispositivo');
+        }
+      } catch (err) {
+        showToast('Impossibile accedere al Flash LED (permesso fotocamera)');
+      }
+    }
+  }, [isFlashOn, showToast]);
 
   // Load initial sessions from local IndexedDB & activate Persistent Storage protection
   useEffect(() => {
@@ -977,27 +1085,67 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column (5 cols on desktop): High-Precision Stopwatch & Tactile Android Controls */}
               <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
-                {/* Instrument Top Status Line */}
-                <div className="flex items-center justify-between text-xs text-slate-400 pb-4 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        isRunning
-                          ? 'bg-orange-500 animate-ping'
-                          : currentStats.count === 3
-                          ? 'bg-emerald-500'
-                          : 'bg-slate-500'
-                      }`}
-                    />
-                    <span className="font-semibold text-slate-200">
-                      {isRunning
-                        ? `Acquisizione ${activeSlot}° Dato in corso`
-                        : pendingTimeMs !== null
-                        ? `${activeSlot}° Dato fermato — Convalida o Azzera`
-                        : `Pronto per ${activeSlot}° Dato (su 3)`}
-                    </span>
+                {/* Instrument Top Status Line with compact Flashlight button */}
+                <div className="pb-4 border-b border-slate-800 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          isRunning
+                            ? 'bg-orange-500 animate-ping'
+                            : currentStats.count === 3
+                            ? 'bg-emerald-500'
+                            : 'bg-slate-500'
+                        }`}
+                      />
+                      <span className="font-semibold text-slate-200">
+                        {isRunning
+                          ? `Acquisizione ${activeSlot}° Dato in corso`
+                          : pendingTimeMs !== null
+                          ? `${activeSlot}° Dato fermato — Convalida o Azzera`
+                          : `Pronto per ${activeSlot}° Dato (su 3)`}
+                      </span>
+                    </div>
+                    <span className="shrink-0">{currentStats.count}/3 registrati</span>
                   </div>
-                  <span>{currentStats.count}/3 registrati</span>
+
+                  {/* Piccolo pulsante Flash LED centrato nella sezione */}
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleToggleFlashlight}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm ${
+                        isFlashOn
+                          ? 'bg-amber-500 text-slate-950 border border-amber-400 shadow-amber-500/25'
+                          : 'bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-amber-300 hover:text-white border border-slate-700/80 hover:border-amber-500/50'
+                      }`}
+                      title={
+                        isFlashOn
+                          ? 'Spegni la torcia Flash LED dello smartphone'
+                          : 'Accendi la torcia Flash LED dello smartphone per illuminare lo stramazzo o il punto di misura'
+                      }
+                    >
+                      <Flashlight
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          isFlashOn ? 'text-slate-950 animate-pulse' : 'text-amber-400'
+                        }`}
+                      />
+                      <span>{isFlashOn ? 'Flash Acceso' : 'Accendi Flash'}</span>
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                          isFlashOn
+                            ? 'bg-slate-950 ring-2 ring-white/60 animate-ping'
+                            : 'bg-slate-500'
+                        }`}
+                      />
+                    </button>
+
+                    {isFlashOn && (
+                      <span className="text-[11px] font-mono-tabular text-amber-400/90 font-medium animate-pulse">
+                        Torcia attiva
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Main Digital Readout */}
