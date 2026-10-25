@@ -1114,10 +1114,10 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleToggleFlashlight}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm ${
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer shadow-md ${
                         isFlashOn
-                          ? 'bg-amber-500 text-slate-950 border border-amber-400 shadow-amber-500/25'
-                          : 'bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-amber-300 hover:text-white border border-slate-700/80 hover:border-amber-500/50'
+                          ? 'bg-amber-500 text-slate-950 border border-amber-400 shadow-amber-500/30 ring-2 ring-amber-400/40'
+                          : 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-300 hover:text-white border border-slate-700 hover:border-amber-500/50'
                       }`}
                       title={
                         isFlashOn
@@ -1126,15 +1126,15 @@ export default function App() {
                       }
                     >
                       <Flashlight
-                        className={`w-3.5 h-3.5 shrink-0 ${
+                        className={`w-4 h-4 shrink-0 ${
                           isFlashOn ? 'text-slate-950 animate-pulse' : 'text-amber-400'
                         }`}
                       />
                       <span>{isFlashOn ? 'Flash Acceso' : 'Accendi Flash'}</span>
                       <span
-                        className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                        className={`w-2 h-2 rounded-full transition-colors ${
                           isFlashOn
-                            ? 'bg-slate-950 ring-2 ring-white/60 animate-ping'
+                            ? 'bg-slate-950 ring-2 ring-white/70 animate-ping'
                             : 'bg-slate-500'
                         }`}
                       />
