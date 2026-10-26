@@ -76,6 +76,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.net.Uri;
@@ -639,8 +640,51 @@ public class MainActivity extends BridgeActivity {
         private SpeechRecognizer speechRecognizer = null;
         private boolean isListening = false;
         private int consecutiveSilenceTimeouts = 0;
+        private AudioManager audioManager = null;
+        private int savedMusicVol = -1;
+        private int savedSystemVol = -1;
+
+        private void muteBeepAudio() {
+            try {
+                if (audioManager == null) {
+                    audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                }
+                if (audioManager != null) {
+                    if (savedMusicVol == -1) {
+                        savedMusicVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    }
+                    if (savedSystemVol == -1) {
+                        try {
+                            savedSystemVol = audioManager.getStreamVolume(AudioManager.STREAM_SYSTEM);
+                        } catch (Exception ignored) {}
+                    }
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
+                    try {
+                        audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0);
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {}
+        }
+
+        private void restoreBeepAudio() {
+            try {
+                if (audioManager != null) {
+                    if (savedMusicVol != -1) {
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicVol, 0);
+                        savedMusicVol = -1;
+                    }
+                    if (savedSystemVol != -1) {
+                        try {
+                            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, savedSystemVol, 0);
+                        } catch (Exception ignored) {}
+                        savedSystemVol = -1;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
 
         public void destroy() {
+            restoreBeepAudio();
             try {
                 if (speechRecognizer != null) {
                     speechRecognizer.destroy();
@@ -668,6 +712,7 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void startListening(final String lang) {
             consecutiveSilenceTimeouts = 0;
+            muteBeepAudio();
             startListeningInternal(lang, false);
         }
 
@@ -683,6 +728,7 @@ public class MainActivity extends BridgeActivity {
                                 return;
                             }
                         }
+                        muteBeepAudio();
                         if (speechRecognizer != null) {
                             try { speechRecognizer.destroy(); } catch (Exception ignored) {}
                             speechRecognizer = null;
@@ -722,20 +768,22 @@ public class MainActivity extends BridgeActivity {
                                 // Error 6 (SPEECH_TIMEOUT) e 7 (NO_MATCH/silenzio):
                                 if ((error == 6 || error == 7) && isListening) {
                                     consecutiveSilenceTimeouts++;
-                                    // Se l'utente è rimasto in silenzio (pausa prolungata), evita il loop infinito di bip
+                                    // Se l'utente è rimasto in silenzio (pausa prolungata), evita il loop infinito
                                     if (consecutiveSilenceTimeouts <= 1) {
                                         runOnUiThread(new Runnable() {
                                             @Override
                                             public void run() {
                                                 if (isListening) {
+                                                    muteBeepAudio();
                                                     startListeningInternal(lang, true);
                                                 }
                                             }
                                         });
                                         return;
                                     } else {
-                                        // Pausa silenzio: ferma l'ascolto pacificamente evitando bip continui
+                                        // Pausa silenzio prolungata: rilascia volumi e metti in standby pacificamente
                                         isListening = false;
+                                        restoreBeepAudio();
                                         dispatchSpeechEvent("error", "code_silence_idle", "");
                                         return;
                                     }
@@ -744,12 +792,14 @@ public class MainActivity extends BridgeActivity {
                                     runOnUiThread(new Runnable() {
                                         @Override
                                         public void run() {
+                                            muteBeepAudio();
                                             startListeningInternal(lang, true);
                                         }
                                     });
                                     return;
                                 }
                                 isListening = false;
+                                restoreBeepAudio();
                                 dispatchSpeechEvent("error", "code_" + error, "");
                             }
                             @Override
@@ -766,6 +816,7 @@ public class MainActivity extends BridgeActivity {
                                         public void run() {
                                             if (isListening && speechRecognizer != null) {
                                                 try {
+                                                    muteBeepAudio();
                                                     speechRecognizer.startListening(intent);
                                                 } catch (Exception ignored) {
                                                     startListeningInternal(lang, true);
@@ -786,9 +837,11 @@ public class MainActivity extends BridgeActivity {
                             @Override
                             public void onEvent(int eventType, Bundle params) {}
                         });
+                        muteBeepAudio();
                         speechRecognizer.startListening(intent);
                     } catch (Exception e) {
                         isListening = false;
+                        restoreBeepAudio();
                         dispatchSpeechEvent("error", e.getMessage() != null ? e.getMessage() : "start_failed", "");
                     }
                 }
@@ -800,12 +853,14 @@ public class MainActivity extends BridgeActivity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    restoreBeepAudio();
                     try {
                         if (speechRecognizer != null) {
                             speechRecognizer.stopListening();
                         }
                     } catch (Exception ignored) {}
                     isListening = false;
+                    consecutiveSilenceTimeouts = 0;
                     dispatchSpeechEvent("end", "", "");
                 }
             });
