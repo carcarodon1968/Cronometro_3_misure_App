@@ -162,6 +162,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
   const lastFinalIndexRef = useRef<number>(-1);
   const voiceTargetRef = useRef<'content' | 'title'>('content');
   const isUserListeningRef = useRef<boolean>(false);
+  const lastSpeechTimestampRef = useRef<number>(Date.now());
 
   // ---------- VOICE DICTATION (SPEECH-TO-TEXT) ----------
   const [isVoiceListening, setIsVoiceListening] = useState<boolean>(false);
@@ -556,47 +557,30 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
           setInterimVoiceText(text);
         }
       } else if (type === 'result') {
+        lastSpeechTimestampRef.current = Date.now();
         if (text) {
           appendSpokenText(text, voiceTargetRef.current);
         }
         setInterimVoiceText('');
       } else if (type === 'end') {
         setInterimVoiceText('');
-        if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
-          setTimeout(() => {
-            if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
-              try {
-                if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
-                  window.AndroidSpeech.startListening('it-IT');
-                }
-              } catch {}
-            }
-          }, 20);
-        } else {
-          setIsVoiceListening(false);
-        }
+        // Il bridge nativo gestisce il ciclo continuo su Android in autonomia
       } else if (type === 'error') {
-        if (error && (error.includes('code_6') || error.includes('code_7') || error.includes('11'))) {
-          if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
-            setTimeout(() => {
-              if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
-                try {
-                  window.AndroidSpeech?.startListening('it-IT');
-                } catch {}
-              }
-            }, 30);
-            return;
-          }
+        setInterimVoiceText('');
+        if (error === 'code_silence_idle') {
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
-          setInterimVoiceText('');
+          setVoiceError("Dettatura in pausa per silenzio prolungato. Tocca per riprendere.");
         } else if (error === 'permission_denied') {
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
-          setInterimVoiceText('');
           setVoiceError("Permesso microfono non concesso. Abilita l'accesso al microfono per l'app.");
+        } else if (error && (error.includes('code_6') || error.includes('code_7'))) {
+          // Gestito dal bridge Android durante le pause di riflessione
         } else {
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
-          setInterimVoiceText('');
-          setVoiceError(`Microfono: ${error}`);
+          setVoiceError("Dettatura conclusa.");
         }
       }
     };
@@ -636,6 +620,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
     voiceTargetRef.current = target;
     isUserListeningRef.current = true;
     lastFinalIndexRef.current = -1;
+    lastSpeechTimestampRef.current = Date.now();
 
     // If already active on the same target, toggle off
     if (isVoiceListening && voiceTarget === target) {
@@ -692,6 +677,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
       };
 
       recognition.onresult = (event: any) => {
+        lastSpeechTimestampRef.current = Date.now();
         let interim = '';
         const currentField = voiceTargetRef.current;
 
@@ -741,8 +727,9 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
 
       recognition.onend = () => {
         setInterimVoiceText('');
-        // If dictating note content and user has not clicked stop, continue listening for the next phrase seamlessly
-        if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
+        const silenceDuration = Date.now() - lastSpeechTimestampRef.current;
+        // If dictating note content and user has not clicked stop, continue listening if active recently (<12s)
+        if (isUserListeningRef.current && voiceTargetRef.current === 'content' && silenceDuration < 12000) {
           lastFinalIndexRef.current = -1;
           setTimeout(() => {
             if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
@@ -757,10 +744,13 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
                 }
               }
             }
-          }, 20);
+          }, 40);
         } else {
           isUserListeningRef.current = false;
           setIsVoiceListening(false);
+          if (silenceDuration >= 12000 && voiceTargetRef.current === 'content') {
+            setVoiceError("Dettatura in pausa per silenzio prolungato. Tocca per riprendere.");
+          }
         }
       };
 

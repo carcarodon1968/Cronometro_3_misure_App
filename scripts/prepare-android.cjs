@@ -638,6 +638,7 @@ public class MainActivity extends BridgeActivity {
     public class SpeechBridge {
         private SpeechRecognizer speechRecognizer = null;
         private boolean isListening = false;
+        private int consecutiveSilenceTimeouts = 0;
 
         public void destroy() {
             try {
@@ -647,6 +648,7 @@ public class MainActivity extends BridgeActivity {
                 }
             } catch (Exception ignored) {}
             isListening = false;
+            consecutiveSilenceTimeouts = 0;
         }
 
         @JavascriptInterface
@@ -665,6 +667,7 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void startListening(final String lang) {
+            consecutiveSilenceTimeouts = 0;
             startListeningInternal(lang, false);
         }
 
@@ -690,9 +693,9 @@ public class MainActivity extends BridgeActivity {
                         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, (lang != null && !lang.isEmpty()) ? lang : "it-IT");
                         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
                         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-                        // Consente pause naturali di 1-4 secondi senza interrompere la sessione microfono
-                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L);
-                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4500L);
+                        intent.putExtra("android.speech.extra.DICTATION_MODE", true);
+                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 8000L);
+                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L);
                         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L);
 
                         speechRecognizer.setRecognitionListener(new RecognitionListener() {
@@ -703,6 +706,7 @@ public class MainActivity extends BridgeActivity {
                             }
                             @Override
                             public void onBeginningOfSpeech() {
+                                consecutiveSilenceTimeouts = 0;
                                 dispatchSpeechEvent("listening", "", "");
                             }
                             @Override
@@ -711,30 +715,32 @@ public class MainActivity extends BridgeActivity {
                             public void onBufferReceived(byte[] buffer) {}
                             @Override
                             public void onEndOfSpeech() {
-                                dispatchSpeechEvent("end", "", "");
+                                // Non inviamo "end" a JS qui per evitare conflitti o cancellazioni mentre si elabora onResults
                             }
                             @Override
                             public void onError(int error) {
-                                // Error 6 (SPEECH_TIMEOUT) e 7 (NO_MATCH/silenzio): riarma istantaneamente il microfono senza perdere parole
+                                // Error 6 (SPEECH_TIMEOUT) e 7 (NO_MATCH/silenzio):
                                 if ((error == 6 || error == 7) && isListening) {
-                                    runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            if (isListening) {
-                                                startListeningInternal(lang, true);
+                                    consecutiveSilenceTimeouts++;
+                                    // Se l'utente è rimasto in silenzio (pausa prolungata), evita il loop infinito di bip
+                                    if (consecutiveSilenceTimeouts <= 1) {
+                                        runOnUiThread(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                if (isListening) {
+                                                    startListeningInternal(lang, true);
+                                                }
                                             }
-                                        }
-                                    });
-                                    return;
+                                        });
+                                        return;
+                                    } else {
+                                        // Pausa silenzio: ferma l'ascolto pacificamente evitando bip continui
+                                        isListening = false;
+                                        dispatchSpeechEvent("error", "code_silence_idle", "");
+                                        return;
+                                    }
                                 }
-                                // Error 11 is ERROR_SERVER_DISCONNECTED: auto-retry once seamlessly without showing error to user
                                 if (error == 11 && !isAutoRetry) {
-                                    try {
-                                        if (speechRecognizer != null) {
-                                            speechRecognizer.destroy();
-                                            speechRecognizer = null;
-                                        }
-                                    } catch (Exception ignored) {}
                                     runOnUiThread(new Runnable() {
                                         @Override
                                         public void run() {
@@ -748,10 +754,12 @@ public class MainActivity extends BridgeActivity {
                             }
                             @Override
                             public void onResults(Bundle results) {
+                                consecutiveSilenceTimeouts = 0;
                                 ArrayList<String> matches = (results != null) ? results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) : null;
                                 String text = (matches != null && !matches.isEmpty()) ? matches.get(0) : "";
-                                dispatchSpeechEvent("result", "", text);
-                                // Registrazione continua senza buchi: riapre il microfono subito per non perdere la prima parola della frase successiva
+                                if (text != null && !text.trim().isEmpty()) {
+                                    dispatchSpeechEvent("result", "", text);
+                                }
                                 if (isListening) {
                                     runOnUiThread(new Runnable() {
                                         @Override

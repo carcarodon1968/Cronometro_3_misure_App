@@ -52,6 +52,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
   const recognitionRef = useRef<any>(null);
   const isUserListeningRef = useRef<boolean>(false);
   const lastFinalIndexRef = useRef<number>(-1);
+  const lastSpeechTimestampRef = useRef<number>(Date.now());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Sync initialNote when modal opens
@@ -206,63 +207,33 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       } else if (type === 'partial') {
         if (text) setInterimVoiceText(text);
       } else if (type === 'result') {
+        lastSpeechTimestampRef.current = Date.now();
         if (text && text.trim()) {
           appendSpokenText(text.trim());
         }
         setInterimVoiceText('');
       } else if (type === 'end') {
         setInterimVoiceText('');
-        // Riarmo istantaneo senza latenza per registrazione continua in APK
-        if (isUserListeningRef.current) {
-          setTimeout(() => {
-            if (isUserListeningRef.current) {
-              try {
-                if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
-                  window.AndroidSpeech.startListening('it-IT');
-                }
-              } catch {}
-            }
-          }, 20);
-        } else {
-          setIsVoiceListening(false);
-        }
+        // Il bridge Android gestisce il ciclo continuo in autonomia; non duplichiamo chiamate da JS
       } else if (type === 'error') {
-        // code_6 (speech timeout), code_7 (silence timeout) o 11 (busy/transient): recupero continuo immediato
-        if (error && (error.includes('code_6') || error.includes('code_7') || error.includes('11'))) {
-          if (isUserListeningRef.current) {
-            setTimeout(() => {
-              if (isUserListeningRef.current) {
-                try {
-                  window.AndroidSpeech?.startListening('it-IT');
-                } catch {}
-              }
-            }, 30);
-            return;
-          }
+        setInterimVoiceText('');
+        if (error === 'code_silence_idle') {
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
-          setInterimVoiceText('');
+          setVoiceNotice('Dettatura in pausa per silenzio prolungato. Tocca per riprendere.');
+          setTimeout(() => setVoiceNotice(null), 3500);
         } else if (error === 'permission_denied') {
           isUserListeningRef.current = false;
           setIsVoiceListening(false);
-          setInterimVoiceText('');
           setVoiceNotice('Permesso microfono non concesso nelle impostazioni Android.');
           setTimeout(() => setVoiceNotice(null), 4000);
+        } else if (error && (error.includes('code_6') || error.includes('code_7'))) {
+          // Gestito internamente dal bridge Android durante le pause di riflessione
         } else {
-          if (isUserListeningRef.current) {
-            setTimeout(() => {
-              if (isUserListeningRef.current) {
-                try {
-                  window.AndroidSpeech?.startListening('it-IT');
-                } catch {}
-              }
-            }, 50);
-            return;
-          }
           isUserListeningRef.current = false;
           setIsVoiceListening(false);
-          setInterimVoiceText('');
-          setVoiceNotice(`Microfono: ${error || 'errore temporaneo'}`);
-          setTimeout(() => setVoiceNotice(null), 4000);
+          setVoiceNotice('Dettatura conclusa.');
+          setTimeout(() => setVoiceNotice(null), 3000);
         }
       }
     };
@@ -297,6 +268,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
     setVoiceNotice(null);
     setInterimVoiceText('');
     lastFinalIndexRef.current = -1;
+    lastSpeechTimestampRef.current = Date.now();
 
     // 1. Android APK native bridge if available
     if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
@@ -338,6 +310,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       };
 
       rec.onresult = (event: any) => {
+        lastSpeechTimestampRef.current = Date.now();
         let interim = '';
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
@@ -374,8 +347,9 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
 
       rec.onend = () => {
         setInterimVoiceText('');
-        // Riarmo istantaneo (20ms) se il browser chiude la sessione per timeout di inattività prolungata
-        if (isUserListeningRef.current) {
+        const silenceDuration = Date.now() - lastSpeechTimestampRef.current;
+        // Se l'utente era in ascolto e ha parlato di recente (<12s), riarma senza loop infiniti
+        if (isUserListeningRef.current && silenceDuration < 12000) {
           lastFinalIndexRef.current = -1;
           setTimeout(() => {
             if (isUserListeningRef.current) {
@@ -389,9 +363,14 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
                 }
               }
             }
-          }, 20);
+          }, 40);
         } else {
+          isUserListeningRef.current = false;
           setIsVoiceListening(false);
+          if (silenceDuration >= 12000) {
+            setVoiceNotice('Dettatura in pausa per silenzio prolungato. Tocca per riprendere.');
+            setTimeout(() => setVoiceNotice(null), 3500);
+          }
         }
       };
 
