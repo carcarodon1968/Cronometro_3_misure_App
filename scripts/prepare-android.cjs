@@ -685,11 +685,15 @@ public class MainActivity extends BridgeActivity {
                             speechRecognizer = null;
                         }
                         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
-                        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                        final Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
                         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
                         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, (lang != null && !lang.isEmpty()) ? lang : "it-IT");
                         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
                         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+                        // Consente pause naturali di 1-4 secondi senza interrompere la sessione microfono
+                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L);
+                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4500L);
+                        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L);
 
                         speechRecognizer.setRecognitionListener(new RecognitionListener() {
                             @Override
@@ -707,12 +711,22 @@ public class MainActivity extends BridgeActivity {
                             public void onBufferReceived(byte[] buffer) {}
                             @Override
                             public void onEndOfSpeech() {
-                                isListening = false;
                                 dispatchSpeechEvent("end", "", "");
                             }
                             @Override
                             public void onError(int error) {
-                                isListening = false;
+                                // Error 6 (SPEECH_TIMEOUT) e 7 (NO_MATCH/silenzio): riarma istantaneamente il microfono senza perdere parole
+                                if ((error == 6 || error == 7) && isListening) {
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (isListening) {
+                                                startListeningInternal(lang, true);
+                                            }
+                                        }
+                                    });
+                                    return;
+                                }
                                 // Error 11 is ERROR_SERVER_DISCONNECTED: auto-retry once seamlessly without showing error to user
                                 if (error == 11 && !isAutoRetry) {
                                     try {
@@ -729,14 +743,29 @@ public class MainActivity extends BridgeActivity {
                                     });
                                     return;
                                 }
+                                isListening = false;
                                 dispatchSpeechEvent("error", "code_" + error, "");
                             }
                             @Override
                             public void onResults(Bundle results) {
-                                isListening = false;
                                 ArrayList<String> matches = (results != null) ? results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) : null;
                                 String text = (matches != null && !matches.isEmpty()) ? matches.get(0) : "";
                                 dispatchSpeechEvent("result", "", text);
+                                // Registrazione continua senza buchi: riapre il microfono subito per non perdere la prima parola della frase successiva
+                                if (isListening) {
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (isListening && speechRecognizer != null) {
+                                                try {
+                                                    speechRecognizer.startListening(intent);
+                                                } catch (Exception ignored) {
+                                                    startListeningInternal(lang, true);
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
                             }
                             @Override
                             public void onPartialResults(Bundle partialResults) {

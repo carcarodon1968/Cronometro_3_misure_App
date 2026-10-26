@@ -561,31 +561,51 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
         }
         setInterimVoiceText('');
       } else if (type === 'end') {
-        setIsVoiceListening(false);
         setInterimVoiceText('');
-      } else if (type === 'error') {
-        setIsVoiceListening(false);
-        setInterimVoiceText('');
-        if (error === 'permission_denied') {
-          setVoiceError("Permesso microfono non concesso. Abilita l'accesso al microfono per l'app.");
-        } else if (error === 'code_11') {
-          // If native Android code_11 (ERROR_SERVER_DISCONNECTED) occurs, auto-reconnect silently
-          if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
-            setTimeout(() => {
+        if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
+          setTimeout(() => {
+            if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
               try {
-                window.AndroidSpeech.startListening('it-IT');
+                if (typeof window !== 'undefined' && window.AndroidSpeech && window.AndroidSpeech.isAvailable()) {
+                  window.AndroidSpeech.startListening('it-IT');
+                }
               } catch {}
-            }, 100);
+            }
+          }, 20);
+        } else {
+          setIsVoiceListening(false);
+        }
+      } else if (type === 'error') {
+        if (error && (error.includes('code_6') || error.includes('code_7') || error.includes('11'))) {
+          if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
+            setTimeout(() => {
+              if (isUserListeningRef.current && voiceTargetRef.current === 'content') {
+                try {
+                  window.AndroidSpeech?.startListening('it-IT');
+                } catch {}
+              }
+            }, 30);
+            return;
           }
-        } else if (error && error !== 'code_7' && error !== 'code_11') {
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
+        } else if (error === 'permission_denied') {
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
+          setVoiceError("Permesso microfono non concesso. Abilita l'accesso al microfono per l'app.");
+        } else {
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
           setVoiceError(`Microfono: ${error}`);
         }
       }
     };
 
     window.addEventListener('androidSpeechEvent', handleAndroidSpeech);
+    window.addEventListener('androidspeech', handleAndroidSpeech);
     return () => {
       window.removeEventListener('androidSpeechEvent', handleAndroidSpeech);
+      window.removeEventListener('androidspeech', handleAndroidSpeech);
     };
   }, []);
 
@@ -660,8 +680,8 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
 
       const recognition = new SpeechRecognition();
       recognition.lang = 'it-IT';
-      // Use continuous: false for clean utterance segmentation (avoids Chrome cumulative duplication)
-      recognition.continuous = false;
+      // Continuous speech enabled for note content to prevent mic cutoff during 1-3 second pauses
+      recognition.continuous = voiceTargetRef.current === 'content';
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
@@ -702,6 +722,8 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
 
       recognition.onerror = (event: any) => {
         console.warn('Speech recognition error:', event.error);
+        // Do not stop or error on silence timeouts (no-speech) to allow natural pauses
+        if (event.error === 'no-speech') return;
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           setVoiceError("Accesso al microfono non consentito. Verifica i permessi del browser.");
           isUserListeningRef.current = false;
@@ -710,7 +732,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
           setVoiceError("Riconoscimento vocale offline o rete assente. Usa il microfono sulla tastiera Gboard.");
           isUserListeningRef.current = false;
           setIsVoiceListening(false);
-        } else if (event.error !== 'no-speech') {
+        } else {
           setVoiceError(`Errore microfono (${event.error}).`);
           isUserListeningRef.current = false;
           setIsVoiceListening(false);
@@ -727,11 +749,15 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
               try {
                 recognition.start();
               } catch {
-                isUserListeningRef.current = false;
-                setIsVoiceListening(false);
+                try {
+                  startVoiceDictation('content');
+                } catch {
+                  isUserListeningRef.current = false;
+                  setIsVoiceListening(false);
+                }
               }
             }
-          }, 150);
+          }, 20);
         } else {
           isUserListeningRef.current = false;
           setIsVoiceListening(false);

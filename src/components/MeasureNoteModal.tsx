@@ -212,7 +212,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
         setInterimVoiceText('');
       } else if (type === 'end') {
         setInterimVoiceText('');
-        // Seamless multi-sentence continuation in APK
+        // Riarmo istantaneo senza latenza per registrazione continua in APK
         if (isUserListeningRef.current) {
           setTimeout(() => {
             if (isUserListeningRef.current) {
@@ -222,22 +222,13 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
                 }
               } catch {}
             }
-          }, 250);
+          }, 20);
         } else {
           setIsVoiceListening(false);
         }
       } else if (type === 'error') {
-        if (error && error.includes('11')) {
-          // code_11 is recognizer busy/transient in android
-          setVoiceNotice('Microfono pronto. Parla adesso...');
-          return;
-        } else if (error === 'permission_denied') {
-          isUserListeningRef.current = false;
-          setIsVoiceListening(false);
-          setInterimVoiceText('');
-          setVoiceNotice('Permesso microfono non concesso nelle impostazioni Android.');
-        } else if (error && error.includes('code_7')) {
-          // No speech input in timeout - restart if still listening
+        // code_6 (speech timeout), code_7 (silence timeout) o 11 (busy/transient): recupero continuo immediato
+        if (error && (error.includes('code_6') || error.includes('code_7') || error.includes('11'))) {
           if (isUserListeningRef.current) {
             setTimeout(() => {
               if (isUserListeningRef.current) {
@@ -245,18 +236,34 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
                   window.AndroidSpeech?.startListening('it-IT');
                 } catch {}
               }
-            }, 300);
+            }, 30);
             return;
           }
           setIsVoiceListening(false);
           setInterimVoiceText('');
+        } else if (error === 'permission_denied') {
+          isUserListeningRef.current = false;
+          setIsVoiceListening(false);
+          setInterimVoiceText('');
+          setVoiceNotice('Permesso microfono non concesso nelle impostazioni Android.');
+          setTimeout(() => setVoiceNotice(null), 4000);
         } else {
+          if (isUserListeningRef.current) {
+            setTimeout(() => {
+              if (isUserListeningRef.current) {
+                try {
+                  window.AndroidSpeech?.startListening('it-IT');
+                } catch {}
+              }
+            }, 50);
+            return;
+          }
           isUserListeningRef.current = false;
           setIsVoiceListening(false);
           setInterimVoiceText('');
           setVoiceNotice(`Microfono: ${error || 'errore temporaneo'}`);
+          setTimeout(() => setVoiceNotice(null), 4000);
         }
-        setTimeout(() => setVoiceNotice(null), 4000);
       }
     };
 
@@ -320,7 +327,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
 
       const rec = new SpeechRec();
       rec.lang = 'it-IT';
-      rec.continuous = false; // continuous: false avoids Chrome cumulative duplication
+      rec.continuous = true; // Registrazione continua attiva: mantiene il microfono sempre acceso tra una frase e l'altra
       rec.interimResults = true;
       rec.maxAlternatives = 1;
 
@@ -350,6 +357,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
       };
 
       rec.onerror = (event: any) => {
+        // Ignora timeout di silenzio 'no-speech' per consentire pause naturali di riflessione
         if (event.error === 'no-speech') return;
         isUserListeningRef.current = false;
         setIsVoiceListening(false);
@@ -366,6 +374,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
 
       rec.onend = () => {
         setInterimVoiceText('');
+        // Riarmo istantaneo (20ms) se il browser chiude la sessione per timeout di inattività prolungata
         if (isUserListeningRef.current) {
           lastFinalIndexRef.current = -1;
           setTimeout(() => {
@@ -380,7 +389,7 @@ export const MeasureNoteModal: React.FC<MeasureNoteModalProps> = ({
                 }
               }
             }
-          }, 150);
+          }, 20);
         } else {
           setIsVoiceListening(false);
         }
