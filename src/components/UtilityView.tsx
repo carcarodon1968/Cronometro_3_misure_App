@@ -1189,7 +1189,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
             <div>
               <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                 <label className="block text-[11px] font-semibold text-slate-400">
-                  Testo / Appunto
+                  Testo Nota
                 </label>
                 <div className="flex items-center gap-2">
                   <button
@@ -1200,7 +1200,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
                         ? 'bg-red-500 text-white border-red-400 shadow-red-500/30 ring-2 ring-red-400/40 animate-pulse'
                         : 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-500/40 text-orange-400 hover:text-orange-300'
                     }`}
-                    title="Attiva/Disattiva la dettatura vocale con il microfono"
+                    title="Attiva/Disattiva la dettatura vocale"
                   >
                     {isVoiceListening && voiceTarget === 'content' ? (
                       <>
@@ -1210,7 +1210,7 @@ export function UtilityView({ initialOpenNote, onClearInitialOpenNote }: Utility
                     ) : (
                       <>
                         <Mic className="w-3.5 h-3.5 text-orange-400" />
-                        <span>Dettatura Vocale (Microfono)</span>
+                        <span>Dettatura Vocale</span>
                       </>
                     )}
                   </button>

@@ -1086,7 +1086,7 @@ export default function App() {
               {/* Left Column (5 cols on desktop): High-Precision Stopwatch & Tactile Android Controls */}
               <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
                 {/* Instrument Top Status Line with compact Flashlight button */}
-                <div className="pb-4 border-b border-slate-800 flex flex-col space-y-4">
+                <div className="pb-5 border-b border-slate-800 flex flex-col space-y-5">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <div className="flex items-center gap-2">
                       <span
@@ -1110,7 +1110,7 @@ export default function App() {
                   </div>
 
                   {/* Piccolo pulsante Flash LED centrato nella sezione */}
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="pt-2 flex items-center justify-center gap-2">
                     <button
                       type="button"
                       onClick={handleToggleFlashlight}
